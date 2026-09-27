@@ -1,0 +1,7 @@
+# Kredensial — JANGAN PERNAH commit
+secrets.php
+
+# File runtime / editor
+*.log
+.DS_Store
+Thumbs.db

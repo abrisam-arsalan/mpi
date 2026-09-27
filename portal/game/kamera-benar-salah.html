@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Game Kamera Benar-Salah — Portal MPI</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#0f172a; color:#e2e8f0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; user-select:none; }
+  button { font-family: inherit; cursor: pointer; border: none; border-radius: 12px; font-weight: 700; }
+  #stage { position: relative; width:100%; height:100%; background:#000; overflow:hidden; }
+  #video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; background:#000; }
+  #video.mirror { transform: scaleX(-1); }
+  .zone { position:absolute; top:0; bottom:0; z-index:2; pointer-events:none; transition: background .35s, box-shadow .35s; }
+  #zoneA { left:0; border-right:2px dashed rgba(255,255,255,.25); }
+  #zoneB { right:0; border-left:2px dashed rgba(255,255,255,.25); }
+  .zone.correct { background: rgba(34,197,94,.38); box-shadow: inset 0 0 0 6px #22c55e; }
+  .zone.wrong { background: rgba(239,68,68,.38); box-shadow: inset 0 0 0 6px #ef4444; }
+  #divider { position:absolute; top:0; bottom:0; width:2px; background:rgba(255,255,255,.45); z-index:3; pointer-events:none; }
+  #overlay { position:absolute; inset:0; z-index:4; pointer-events:none; }
+  .zone-label { position:absolute; top:18px; z-index:5; font-weight:900; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.7); font-size:clamp(20px,3vw,34px); padding:6px 16px; border-radius:12px; background:rgba(15,23,42,.55); }
+  #zoneLabelA { left:18px; } #zoneLabelB { right:18px; }
+  #topBar { position:absolute; top:0; left:50%; transform:translateX(-50%); z-index:6; display:flex; gap:18px; background:rgba(15,23,42,.75); padding:10px 22px; border-radius:0 0 16px 16px; font-weight:800; font-size:clamp(16px,2.2vw,22px); color:#fff; }
+  #timerBadge.low { color:#f87171; }
+  #questionPanel { position:absolute; left:50%; bottom:120px; transform:translateX(-50%); z-index:6; width:min(92%,1000px); background:rgba(15,23,42,.88); border:1px solid #475569; border-radius:20px; padding:18px 26px; text-align:center; }
+  #questionText { font-size:clamp(18px,2.6vw,30px); font-weight:800; color:#fff; line-height:1.35; }
+  #answerHint { margin-top:12px; color:#cbd5e1; font-size:clamp(14px,1.8vw,20px); } #answerHint b { color:#fbbf24; }
+  #countdown { position:absolute; inset:0; z-index:8; display:flex; align-items:center; justify-content:center; font-size:40vh; font-weight:900; color:#fff; text-shadow:0 10px 40px rgba(0,0,0,.6); background:rgba(15,23,42,.35); }
+  #resultBanner { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:7; background:rgba(15,23,42,.94); border:2px solid #6366f1; border-radius:22px; padding:24px 40px; text-align:center; font-size:clamp(20px,3vw,34px); font-weight:800; color:#fff; max-width:90%; }
+  #resultBanner .ok { color:#4ade80; } #resultBanner .no { color:#f87171; }
+  #controls { position:absolute; bottom:0; left:0; right:0; z-index:7; display:flex; justify-content:center; gap:14px; padding:18px; background:linear-gradient(transparent, rgba(15,23,42,.9)); }
+  .btn-primary { background:#6366f1; color:#fff; font-size:clamp(15px,1.8vw,19px); padding:14px 24px; }
+  .btn-warn { background:#f59e0b; color:#1c1917; font-size:clamp(15px,1.8vw,19px); padding:14px 22px; }
+  .btn-secondary { background:#334155; color:#e2e8f0; font-size:clamp(14px,1.6vw,18px); padding:12px 18px; }
+  #calPanel { position:absolute; top:70px; right:16px; z-index:9; background:rgba(15,23,42,.92); border:1px solid #475569; border-radius:14px; padding:16px; width:280px; }
+  #calPanel label { display:block; color:#cbd5e1; font-size:14px; margin:10px 0 4px; }
+  #calPanel input[type=range] { width:100%; }
+  #calPanel .chk { display:flex; align-items:center; gap:8px; margin-top:12px; }
+  #loading { position:absolute; inset:0; z-index:100; background:rgba(15,23,42,.9); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
+  .spinner { width:60px; height:60px; border:6px solid #334155; border-top-color:#6366f1; border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg);} }
+  #loadingText { color:#e2e8f0; font-size:20px; font-weight:700; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <video id="video" autoplay playsinline muted></video>
+  <div id="zoneA" class="zone"></div>
+  <div id="zoneB" class="zone"></div>
+  <div id="divider"></div>
+  <canvas id="overlay"></canvas>
+  <div id="zoneLabelA" class="zone-label">A</div>
+  <div id="zoneLabelB" class="zone-label">B</div>
+  <div id="topBar">
+    <span id="qCounter">—</span>
+    <span id="timerBadge">⏱ 0</span>
+    <span id="liveCount">👥 kiri 0 · kanan 0</span>
+  </div>
+  <div id="questionPanel" hidden>
+    <div id="questionText"></div>
+    <div id="answerHint">Kiri = <b id="optA">A</b> &nbsp;·&nbsp; Kanan = <b id="optB">B</b></div>
+  </div>
+  <div id="countdown" hidden>3</div>
+  <div id="resultBanner" hidden></div>
+
+  <div id="calPanel" hidden>
+    <div style="font-weight:800;color:#fff;margin-bottom:6px">⚙️ Kalibrasi</div>
+    <label>Posisi garis tengah: <b id="splitVal">50%</b></label>
+    <input id="split" type="range" min="20" max="80" value="50">
+    <label>Durasi per soal: <b id="timerVal">15</b> detik</label>
+    <input id="timer" type="range" min="5" max="60" value="15">
+    <label class="chk"><input id="mirror" type="checkbox"> Mode cermin (balik kiri-kanan)</label>
+  </div>
+
+  <div id="controls">
+    <button id="btnStart" class="btn-primary" hidden>▶ Mulai</button>
+    <button id="btnReveal" class="btn-warn" hidden>🔒 Kunci Jawaban</button>
+    <button id="btnNext" class="btn-primary" hidden>➡ Soal Berikutnya</button>
+    <button id="btnCal" class="btn-secondary">⚙️ Kalibrasi</button>
+    <a id="btnQuit" class="btn-secondary" href="index.php" style="text-decoration:none;color:#e2e8f0">🏠 Kembali</a>
+  </div>
+
+  <div id="loading" hidden><div class="spinner"></div><div id="loadingText">Memuat...</div></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm';
+  const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+
+  const $ = (id) => document.getElementById(id);
+  const video = $('video'), overlay = $('overlay'), stage = $('stage');
+  const zoneA = $('zoneA'), zoneB = $('zoneB'), divider = $('divider');
+  const zoneLabelA = $('zoneLabelA'), zoneLabelB = $('zoneLabelB');
+  const qCounter = $('qCounter'), timerBadge = $('timerBadge'), liveCount = $('liveCount');
+  const questionPanel = $('questionPanel'), questionText = $('questionText'), optA = $('optA'), optB = $('optB');
+  const countdownEl = $('countdown'), resultBanner = $('resultBanner');
+  const btnStart = $('btnStart'), btnReveal = $('btnReveal'), btnNext = $('btnNext'), btnCal = $('btnCal');
+  const calPanel = $('calPanel'), splitEl = $('split'), splitVal = $('splitVal'), timerEl = $('timer'), timerVal = $('timerVal'), mirrorEl = $('mirror');
+  const loadingEl = $('loading'), loadingText = $('loadingText');
+
+  // ---------- Soal bawaan (fallback bila API belum tersedia) ----------
+  const FALLBACK = [
+    ['Berpikir komputasional adalah cara memecahkan masalah rumit secara metodis, efisien, dan logis.','Benar','Salah','A',''],
+    ['Berpikir komputasional hanya berguna untuk programmer.','Benar','Salah','B','Berguna untuk semua orang.'],
+    ['Membagi masalah besar menjadi bagian kecil disebut dekomposisi.','Benar','Salah','A',''],
+    ['Mengenali pola/kesamaan pada masalah berbeda disebut pengenalan pola.','Benar','Salah','A',''],
+    ['Abstraksi berarti memperhatikan semua detail sekecil apa pun.','Benar','Salah','B','Abstraksi justru membuang detail tak relevan.'],
+    ['Algoritma adalah serangkaian langkah yang jelas dan berurutan.','Benar','Salah','A',''],
+    ['Algoritma yang baik boleh berhenti kapan saja tanpa menyelesaikan masalah.','Benar','Salah','B','Pasti berhenti SETELAH selesai.'],
+    ['Resep masakan adalah contoh algoritma dalam kehidupan sehari-hari.','Benar','Salah','A',''],
+    ['Fokus pada keseimbangan sepeda tanpa memikirkan detail gir adalah contoh abstraksi.','Benar','Salah','A',''],
+    ['Langkah "menumis bumbu" yang sama untuk mie goreng dan capcay adalah contoh dekomposisi.','Benar','Salah','B','Itu contoh pengenalan pola.'],
+    ['Dekomposisi membuat masalah besar terlihat lebih mudah dikelola.','Benar','Salah','A',''],
+    ['Berpikir komputasional melatih berpikir logis dan terstruktur.','Benar','Salah','A','']
+  ].map(function (r) { return { q: r[0], A: r[1], B: r[2], answer: r[3], explanation: r[4] || '' }; });
+
+  const params = new URLSearchParams(location.search);
+  const gameSlug = params.get('game') || '';
+  const gameId = params.get('id') || '';
+
+  let questions = FALLBACK.slice();
+  let sourceName = 'Bawaan (demo)';
+  let qIndex = 0, currentQuestion = null;
+  let phase = 'idle';   // idle | ready | countdown | playing | revealed | ended
+  let gameActive = false, timerLeft = 0, timerInterval = null;
+  let videoStream = null, poseLandmarker = null, lastVideoTime = -1, rafId = null;
+  let detections = { people: [], left: 0, right: 0 };
+  let stats = { totalCorrect: 0, totalPeople: 0 };
+  let splitRatio = 0.5, mirrored = false, durasi = 15;
+
+  // ---------- Ambil soal dari portal API ----------
+  async function loadQuestions() {
+    if (!gameSlug) return;
+    try {
+      showLoading('Mengambil soal dari bank soal...');
+      const res = await fetch('api/questions.php?game=' + encodeURIComponent(gameSlug), { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const list = (data.soal || []).map(function (s) {
+        return { q: s.pertanyaan, A: s.opsi_a || 'Benar', B: s.opsi_b || 'Salah', answer: (s.kunci === 'B' ? 'B' : 'A'), explanation: s.penjelasan || '' };
+      });
+      if (list.length) {
+        questions = list;
+        sourceName = (data.game && data.game.nama) || gameSlug;
+        qCounter.textContent = sourceName + ' · ' + questions.length + ' soal';
+      }
+      hideLoading();
+    } catch (e) {
+      hideLoading();
+      qCounter.textContent = '⚠️ Soal bawaan (' + FALLBACK.length + ') — API tidak tersedia';
+    }
+  }
+
+  // ---------- Kamera + model ----------
+  function showLoading(m) { loadingText.textContent = m; loadingEl.hidden = false; }
+  function hideLoading() { loadingEl.hidden = true; }
+  async function startCamera() {
+    if (videoStream) return;
+    showLoading('Mengaktifkan kamera...');
+    const attempts = [
+      { video: { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: true }
+    ];
+    let stream = null;
+    for (let i = 0; i < attempts.length; i++) {
+      try { stream = await navigator.mediaDevices.getUserMedia(attempts[i]); break; } catch (e) {}
+    }
+    if (!stream) throw new Error('Kamera tidak dapat diakses. Izinkan akses kamera di browser.');
+    videoStream = stream;
+    video.srcObject = stream;
+    try { await video.play(); } catch (e) {}
+    hideLoading();
+  }
+  async function loadModel() {
+    if (poseLandmarker) return;
+    if (typeof FilesetResolver === 'undefined') throw new Error('Library deteksi tidak termuat. Perlu koneksi internet.');
+    showLoading('Memuat model deteksi pose...');
+    const vision = await FilesetResolver.forVisionTasks(WASM_URL);
+    const opts = { baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' }, runningMode: 'VIDEO', numPoses: 8,
+      minPoseDetectionConfidence: 0.4, minPosePresenceConfidence: 0.4, minTrackingConfidence: 0.4 };
+    try { poseLandmarker = await PoseLandmarker.createFromOptions(vision, opts); }
+    catch (e) { opts.baseOptions.delegate = 'CPU'; poseLandmarker = await PoseLandmarker.createFromOptions(vision, opts); }
+    hideLoading();
+  }
+
+  // ---------- Deteksi ----------
+  function dispX(raw) { return mirrored ? (1 - raw) : raw; }
+  function classifySide(raw) { return dispX(raw) < splitRatio ? 'A' : 'B'; }
+  function detectOnce() {
+    if (!poseLandmarker || video.readyState < 2) return;
+    const now = performance.now();
+    if (now - lastVideoTime < 100) return;
+    lastVideoTime = now;
+    try {
+      const res = poseLandmarker.detectForVideo(video, now);
+      const people = [];
+      (res.landmarks || []).forEach(function (lm) {
+        let sx = 0, sy = 0, n = 0;
+        for (let i = 0; i < lm.length; i++) { const p = lm[i]; if (p && (p.visibility == null || p.visibility > 0.3)) { sx += p.x; sy += p.y; n++; } }
+        if (n === 0) return;
+        const nose = (lm[0] && lm[0].visibility > 0.3) ? lm[0] : { x: sx / n, y: sy / n };
+        people.push({ x: sx / n, y: sy / n, nx: nose.x, ny: nose.y });
+      });
+      const left = people.filter(function (p) { return classifySide(p.x) === 'A'; }).length;
+      detections = { people: people, left: left, right: people.length - left };
+      if (phase === 'playing' || phase === 'countdown') liveCount.textContent = '👥 kiri ' + detections.left + ' · kanan ' + detections.right;
+      drawOverlay(people);
+    } catch (e) {}
+  }
+  function videoToScreen(nx, ny) {
+    const cw = stage.clientWidth, ch = stage.clientHeight, vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return { x: dispX(nx) * cw, y: ny * ch };
+    const scale = Math.max(cw / vw, ch / vh), dw = vw * scale, dh = vh * scale;
+    const ox = (cw - dw) / 2, oy = (ch - dh) / 2;
+    return { x: ox + dispX(nx) * vw * scale, y: oy + ny * vh * scale };
+  }
+  function drawOverlay(people) {
+    const c = overlay, ctx = c.getContext('2d');
+    const w = stage.clientWidth, h = stage.clientHeight;
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    ctx.clearRect(0, 0, w, h);
+    people.forEach(function (p) {
+      const s = videoToScreen(p.nx, p.ny);
+      let color = '#38bdf8';
+      if (phase === 'revealed') color = (classifySide(p.x) === currentQuestion.answer) ? '#22c55e' : '#ef4444';
+      ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(12, w * 0.012), 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.stroke();
+    });
+  }
+  function loop() { if (!gameActive) return; detectOnce(); rafId = requestAnimationFrame(loop); }
+  function startLoop() { cancelAnimationFrame(rafId); rafId = requestAnimationFrame(loop); }
+
+  // ---------- Alur game ----------
+  function applyZones() {
+    const p = Math.round(splitRatio * 100);
+    divider.style.left = p + '%';
+    zoneA.style.width = p + '%';
+    zoneB.style.left = p + '%';
+    zoneB.style.width = (100 - p) + '%';
+    video.classList.toggle('mirror', mirrored);
+  }
+  function resetRoundUI() {
+    zoneA.className = 'zone'; zoneB.className = 'zone';
+    resultBanner.hidden = true; questionPanel.hidden = true; countdownEl.hidden = true;
+    btnStart.hidden = true; btnReveal.hidden = true; btnNext.hidden = true;
+    timerBadge.classList.remove('low'); liveCount.textContent = '👥 kiri 0 · kanan 0';
+  }
+  async function begin() {
+    gameActive = true;
+    resetRoundUI();
+    qIndex = 0;
+    stats = { totalCorrect: 0, totalPeople: 0 };
+    try {
+      await startCamera();
+      await loadModel();
+      startLoop();
+      phase = 'ready';
+      btnStart.hidden = false;
+      btnStart.textContent = '▶ Mulai';
+    } catch (e) { alert('⚠️ ' + (e.message || 'Gagal memuat.')); }
+  }
+  function startCountdown() {
+    phase = 'countdown';
+    btnStart.hidden = true; btnReveal.hidden = true; btnNext.hidden = true;
+    let n = 3; countdownEl.hidden = false; countdownEl.textContent = n;
+    const iv = setInterval(function () {
+      n--; if (n <= 0) { clearInterval(iv); countdownEl.hidden = true; beginQuestion(); } else countdownEl.textContent = n;
+    }, 1000);
+  }
+  function beginQuestion() {
+    currentQuestion = questions[qIndex];
+    phase = 'playing';
+    zoneA.className = 'zone'; zoneB.className = 'zone'; resultBanner.hidden = true;
+    questionPanel.hidden = false;
+    questionText.textContent = currentQuestion.q;
+    optA.textContent = currentQuestion.A; optB.textContent = currentQuestion.B;
+    zoneLabelA.textContent = 'A · ' + currentQuestion.A;
+    zoneLabelB.textContent = 'B · ' + currentQuestion.B;
+    qCounter.textContent = sourceName + ' · Soal ' + (qIndex + 1) + '/' + questions.length;
+    timerLeft = durasi; updateTimer();
+    timerInterval = setInterval(function () {
+      timerLeft--; updateTimer(); if (timerLeft <= 0) { clearInterval(timerInterval); reveal(); }
+    }, 1000);
+    btnReveal.hidden = false;
+  }
+  function updateTimer() { timerBadge.textContent = '⏱ ' + Math.max(0, timerLeft); timerBadge.classList.toggle('low', timerLeft <= 5); }
+  function reveal() {
+    if (phase !== 'playing') return;
+    phase = 'revealed'; clearInterval(timerInterval); btnReveal.hidden = true;
+    const ans = currentQuestion.answer;
+    if (ans === 'A') { zoneA.classList.add('correct'); zoneB.classList.add('wrong'); }
+    else { zoneB.classList.add('correct'); zoneA.classList.add('wrong'); }
+    const correctPeople = detections.people.filter(function (p) { return classifySide(p.x) === ans; }).length;
+    stats.totalCorrect += correctPeople; stats.totalPeople += detections.people.length;
+    drawOverlay(detections.people);
+    const last = (qIndex + 1 >= questions.length);
+    resultBanner.innerHTML =
+      'Jawaban benar: <b class="ok">' + esc(ans === 'A' ? currentQuestion.A : currentQuestion.B) + '</b><br>' +
+      '👥 <b>' + correctPeople + '</b> siswa di zona benar (dari ' + detections.people.length + ')' +
+      (currentQuestion.explanation ? '<div style="font-size:.6em;color:#94a3b8;margin-top:8px;font-weight:600;">💡 ' + esc(currentQuestion.explanation) + '</div>' : '');
+    resultBanner.hidden = false;
+    btnNext.hidden = false;
+    btnNext.textContent = last ? '🏁 Lihat Hasil' : '➡ Soal Berikutnya';
+  }
+  function nextRound() {
+    if (qIndex + 1 >= questions.length) { endGame(); return; }
+    qIndex++; resetRoundUI(); startCountdown();
+  }
+  function endGame() {
+    phase = 'ended'; clearInterval(timerInterval); resetRoundUI();
+    const pct = stats.totalPeople ? Math.round(100 * stats.totalCorrect / stats.totalPeople) : 0;
+    resultBanner.innerHTML = '🏁 <b>Selesai!</b><br><b>' + stats.totalCorrect + '</b> jawaban siswa benar dari <b>' + stats.totalPeople + '</b> (' + pct + '%)';
+    resultBanner.hidden = false;
+    btnStart.hidden = false; btnStart.textContent = '🔁 Main Lagi';
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ---------- Event ----------
+  btnStart.addEventListener('click', function () { if (phase === 'ended') { begin(); return; } if (phase === 'ready') startCountdown(); });
+  btnReveal.addEventListener('click', function () { if (phase === 'playing') { clearInterval(timerInterval); reveal(); } });
+  btnNext.addEventListener('click', nextRound);
+  btnCal.addEventListener('click', function () { calPanel.hidden = !calPanel.hidden; });
+  splitEl.addEventListener('input', function () { splitRatio = (parseInt(this.value) || 50) / 100; splitVal.textContent = Math.round(splitRatio * 100) + '%'; applyZones(); });
+  timerEl.addEventListener('input', function () { durasi = parseInt(this.value) || 15; timerVal.textContent = durasi; });
+  mirrorEl.addEventListener('change', function () { mirrored = this.checked; applyZones(); });
+
+  // ---------- Init ----------
+  applyZones();
+  loadQuestions().then(function () {
+    qCounter.textContent = (gameSlug ? sourceName + ' · ' + questions.length + ' soal' : 'Mode demo · ' + questions.length + ' soal');
+    begin();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Kuis Famili 100 — Portal MPI</title>
+<style>
+  :root { --gold:#f5c518; --navy:#0a0f3c; --panel:#111c5c; --ok:#22c55e; --bad:#ef4444; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--navy); color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select:none; }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:12px; font-weight:800; }
+  .muted { color:#94a3b8; }
+
+  #setupScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
+  #setupScreen h1 { margin:0; font-size:clamp(30px,5vw,56px); color:var(--gold); }
+  #setupScreen p { margin:0; color:#cbd5e1; font-size:clamp(15px,2vw,20px); }
+  #teamCfg { display:flex; flex-direction:column; gap:10px; width:min(440px,92%); }
+  #teamCfg .row { display:flex; align-items:center; gap:10px; }
+  #teamCfg .row label { width:130px; text-align:right; color:#cbd5e1; }
+  #teamCfg .row input { flex:1; padding:10px 12px; border-radius:9px; border:1px solid #334155; background:#0b1220; color:#fff; font-size:16px; }
+  #btnMulai { background:var(--gold); color:#1c1917; font-size:clamp(18px,2.4vw,24px); padding:14px 42px; margin-top:10px; }
+
+  #gameScreen { position:absolute; inset:0; display:flex; flex-direction:column; padding:14px 20px; gap:12px; }
+  #scoreboard { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .team { display:flex; flex-direction:column; align-items:center; gap:2px; background:var(--panel); border:2px solid #2a3a8a; border-radius:12px; padding:8px 18px; min-width:110px; cursor:pointer; }
+  .team.active { border-color:var(--gold); background:#1b2a6b; }
+  .team .nm { font-size:15px; font-weight:800; }
+  .team .sc { font-size:24px; font-weight:900; color:var(--gold); }
+  #questionBar { text-align:center; }
+  #qLabel { color:var(--gold); font-weight:900; font-size:14px; letter-spacing:.5px; }
+  #qText { font-size:clamp(20px,3vw,34px); font-weight:800; line-height:1.35; }
+  #board { flex:1; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; align-content:center; overflow:auto; }
+  .slot { position:relative; background:var(--panel); border:2px solid #2a3a8a; border-radius:14px; padding:12px 14px; min-height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; }
+  .slot .rank { position:absolute; top:8px; left:14px; font-size:22px; font-weight:900; color:var(--gold); }
+  .slot .pts { position:absolute; bottom:8px; right:14px; font-size:20px; font-weight:900; color:#fff; }
+  .slot .cover { font-size:clamp(28px,4vw,44px); font-weight:900; color:#64748b; }
+  .slot .ans { display:none; font-size:clamp(16px,2.2vw,24px); font-weight:800; text-align:center; line-height:1.3; }
+  .slot.revealed .cover { display:none; }
+  .slot.revealed .ans { display:block; }
+  .slot.revealed { border-color:var(--gold); background:#0f1d5c; }
+  #controls { display:flex; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap; }
+  .ctl { background:#1b2a6b; border:2px solid #2a3a8a; color:#fff; font-size:clamp(15px,2vw,19px); padding:12px 20px; }
+  #strikeBtn { background:#7f1d1d; border-color:#b91c1c; }
+  #strikes { font-size:26px; letter-spacing:4px; color:var(--bad); min-width:70px; text-align:center; }
+  #btnNext { background:var(--gold); color:#1c1917; }
+
+  #endScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
+  #endTitle { font-size:clamp(24px,4vw,44px); color:var(--gold); margin:0; }
+  #winnerBox { font-size:clamp(20px,3.4vw,40px); font-weight:900; }
+  #endBoard { width:min(600px,92%); display:flex; flex-direction:column; gap:8px; }
+  .erow { display:flex; justify-content:space-between; background:var(--panel); border:1px solid #2a3a8a; border-radius:10px; padding:10px 18px; font-size:clamp(16px,2.2vw,22px); }
+  #btnAgain { background:var(--gold); color:#1c1917; font-size:20px; padding:14px 34px; }
+  #endHome { color:#a5b4fc; font-size:16px; }
+</style>
+</head>
+<body>
+<div id="setupScreen">
+  <h1>💯 KUIS FAMILI 100</h1>
+  <p>Tebak jawaban terpopuler · hingga 6 tim</p>
+  <div id="teamCfg">
+    <div class="row"><label>Jumlah tim</label>
+      <select id="teamCount" style="flex:1;padding:10px;border-radius:9px;border:1px solid #334155;background:#0b1220;color:#fff;font-size:16px">
+        <option value="2" selected>2 tim</option><option value="3">3 tim</option><option value="4">4 tim</option><option value="5">5 tim</option><option value="6">6 tim</option>
+      </select>
+    </div>
+    <div id="teamNames"></div>
+  </div>
+  <button id="btnMulai">▶ MULAI</button>
+  <div class="muted" id="srcName">Memuat soal...</div>
+</div>
+
+<div id="gameScreen" hidden>
+  <div id="scoreboard"></div>
+  <div id="questionBar"><div id="qLabel"></div><div id="qText"></div></div>
+  <div id="board"></div>
+  <div id="controls">
+    <button id="strikeBtn" class="ctl">❌ Strike</button>
+    <span id="strikes"></span>
+    <button id="btnNext" class="ctl">➡ Soal Berikutnya</button>
+    <a class="ctl" href="index.php" style="text-decoration:none;color:#fff">🏠 Beranda</a>
+  </div>
+</div>
+
+<div id="endScreen" hidden>
+  <div style="font-size:80px">🏆</div>
+  <h2 id="endTitle">HASIL AKHIR</h2>
+  <div id="winnerBox"></div>
+  <div id="endBoard"></div>
+  <button id="btnAgain">🔁 Main Lagi</button>
+  <a id="endHome" href="index.php">🏠 Kembali ke Beranda</a>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const FALLBACK = [
+    { q:"Sebutkan empat pilar berpikir komputasional!", j:[
+      {teks:"Dekomposisi",poin:45},{teks:"Pengenalan Pola",poin:25},{teks:"Algoritma",poin:18},{teks:"Abstraksi",poin:12}]},
+    { q:"Sebutkan contoh algoritma dalam kehidupan sehari-hari!", j:[
+      {teks:"Resep masakan",poin:40},{teks:"Petunjuk perakitan mainan",poin:25},{teks:"Tutorial",poin:20},{teks:"Instruksi penggunaan",poin:15}]},
+    { q:"Sebutkan manfaat berpikir komputasional!", j:[
+      {teks:"Melatih berpikir logis",poin:40},{teks:"Memecahkan masalah lebih baik",poin:30},{teks:"Meningkatkan kreativitas",poin:20},{teks:"Dasar bidang STEM",poin:10}]},
+    { q:"Sebutkan langkah membuat nasi goreng (contoh dekomposisi)!", j:[
+      {teks:"Menyiapkan bahan",poin:30},{teks:"Mengiris bumbu",poin:25},{teks:"Menggoreng telur",poin:20},{teks:"Menumis bumbu",poin:15},{teks:"Mencampur & memasak",poin:10}]}
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const gameSlug = params.get('game') || '';
+
+  let questions = FALLBACK.slice();
+  let srcName = 'Soal bawaan (demo)';
+  let teams = [{name:'Tim 1',score:0},{name:'Tim 2',score:0}];
+  let activeTeam = 0, qIndex = 0, current = null, revealed = [], strikes = 0;
+
+  const setupScreen = $('setupScreen'), gameScreen = $('gameScreen'), endScreen = $('endScreen');
+
+  async function loadQuestions() {
+    if (!gameSlug) { $('srcName').textContent = 'Soal bawaan (' + questions.length + ')'; return; }
+    try {
+      const res = await fetch('api/questions.php?game=' + encodeURIComponent(gameSlug), { cache:'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const list = (data.soal || []).map(function (s) {
+        const j = (s.payload && s.payload.jawaban) ? s.payload.jawaban : [];
+        return { q: s.pertanyaan, j: j.map(function (x) { return { teks: x.teks || '', poin: parseInt(x.poin,10) || 0 }; }).filter(function (x) { return x.teks !== ''; }) };
+      }).filter(function (s) { return s.j.length > 0; });
+      if (list.length) { questions = list; srcName = (data.game && data.game.nama) || gameSlug; }
+      $('srcName').textContent = srcName + ' · ' + questions.length + ' soal';
+    } catch (e) {
+      $('srcName').textContent = '⚠️ Soal bawaan (' + questions.length + ') — API tak tersedia';
+    }
+  }
+
+  function renderTeamNames() {
+    const n = parseInt($('teamCount').value, 10);
+    const box = $('teamNames');
+    box.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = '<label>Nama Tim ' + (i + 1) + '</label><input id="tname' + i + '" value="Tim ' + (i + 1) + '">';
+      box.appendChild(row);
+    }
+  }
+
+  function startGame() {
+    const n = parseInt($('teamCount').value, 10);
+    teams = [];
+    for (let i = 0; i < n; i++) {
+      const nm = document.getElementById('tname' + i);
+      teams.push({ name: (nm && nm.value.trim()) || ('Tim ' + (i + 1)), score: 0 });
+    }
+    activeTeam = 0; qIndex = 0;
+    setupScreen.hidden = true; endScreen.hidden = true; gameScreen.hidden = false;
+    showRound();
+  }
+
+  function showRound() {
+    current = questions[qIndex];
+    revealed = []; strikes = 0;
+    $('qLabel').textContent = 'Pertanyaan ' + (qIndex + 1) + ' dari ' + questions.length;
+    $('qText').textContent = current.q;
+    updateStrikes();
+    renderBoard();
+    renderScoreboard();
+  }
+
+  function renderBoard() {
+    const board = $('board');
+    board.innerHTML = '';
+    current.j.forEach(function (a, i) {
+      const d = document.createElement('div');
+      d.className = 'slot'; d.id = 'slot' + i;
+      d.innerHTML = '<span class="rank">' + (i + 1) + '</span><span class="cover">❓</span><span class="ans"></span><span class="pts">' + a.poin + '</span>';
+      d.querySelector('.ans').textContent = a.teks;
+      d.addEventListener('click', function () { revealAnswer(i); });
+      board.appendChild(d);
+    });
+  }
+
+  function renderScoreboard() {
+    const sb = $('scoreboard');
+    sb.innerHTML = '';
+    teams.forEach(function (t, i) {
+      const d = document.createElement('div');
+      d.className = 'team' + (i === activeTeam ? ' active' : '');
+      d.innerHTML = '<span class="nm">' + esc(t.name) + '</span><span class="sc">' + t.score + '</span>';
+      d.addEventListener('click', function () { activeTeam = i; renderScoreboard(); });
+      sb.appendChild(d);
+    });
+  }
+
+  function revealAnswer(i) {
+    if (revealed.includes(i)) return;
+    revealed.push(i);
+    const slot = document.getElementById('slot' + i);
+    if (slot) slot.classList.add('revealed');
+    teams[activeTeam].score += current.j[i].poin;
+    renderScoreboard();
+  }
+
+  function updateStrikes() {
+    $('strikes').textContent = '❌'.repeat(strikes) || '';
+  }
+
+  function nextQuestion() {
+    if (qIndex + 1 >= questions.length) { endGame(); return; }
+    qIndex++;
+    showRound();
+  }
+
+  function endGame() {
+    gameScreen.hidden = true; endScreen.hidden = false;
+    const sorted = teams.slice().sort(function (a, b) { return b.score - a.score; });
+    $('winnerBox').textContent = '🏆 ' + sorted[0].name + ' — ' + sorted[0].score + ' poin';
+    const eb = $('endBoard');
+    eb.innerHTML = '';
+    sorted.forEach(function (t, i) {
+      const r = document.createElement('div'); r.className = 'erow';
+      r.innerHTML = '<span>' + (i + 1) + '. ' + esc(t.name) + '</span><b>' + t.score + '</b>';
+      eb.appendChild(r);
+    });
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  $('teamCount').addEventListener('change', renderTeamNames);
+  $('btnMulai').addEventListener('click', startGame);
+  $('btnAgain').addEventListener('click', function () { endScreen.hidden = true; setupScreen.hidden = false; });
+  $('strikeBtn').addEventListener('click', function () {
+    strikes = Math.min(3, strikes + 1);
+    if (strikes >= 3) { setTimeout(function () { strikes = 0; }, 400); }
+    updateStrikes();
+  });
+  $('btnNext').addEventListener('click', nextQuestion);
+
+  renderTeamNames();
+  loadQuestions();
+})();
+</script>
+</body>
+</html>

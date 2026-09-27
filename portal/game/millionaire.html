@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Who Wants To Be A Millionaire — Portal MPI</title>
+<style>
+  :root { --gold:#f5c518; --navy:#0a0f3c; --navy2:#111c5c; --ok:#22c55e; --bad:#ef4444; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--navy); color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select:none; }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:12px; font-weight:800; }
+  .muted { color:#94a3b8; }
+
+  /* ---------- START ---------- */
+  #startScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:30px;
+    background: radial-gradient(circle at 50% 20%, #1b2a6b 0%, var(--navy) 60%); }
+  #startScreen .logo { font-size:90px; }
+  #startScreen h1 { margin:0; font-size:clamp(28px,5vw,56px); color:var(--gold); letter-spacing:1px; }
+  #startScreen p { margin:0; font-size:clamp(15px,2.2vw,22px); color:#cbd5e1; }
+  #btnMulai { background:var(--gold); color:#1c1917; font-size:clamp(20px,3vw,30px); padding:18px 46px; box-shadow:0 6px 0 #b8860b; }
+
+  /* ---------- GAME ---------- */
+  #gameScreen { position:absolute; inset:0; display:flex; }
+  #ladder { width:260px; background:#080c30; border-right:2px solid #1e2a6b; display:flex; flex-direction:column; padding:8px 10px; overflow:hidden; }
+  .rung { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; margin:2px 0; border-radius:8px; font-size:13px; font-weight:700; color:#94a3b8; }
+  .rung .num { color:#64748b; width:24px; }
+  .rung.current { background:linear-gradient(90deg,#b8860b,var(--gold)); color:#1c1917; }
+  .rung.current .num { color:#1c1917; }
+  .rung.safe { color:#ffd76a; }
+  #main { flex:1; display:flex; flex-direction:column; padding:18px 28px; gap:14px; min-width:0; }
+  #topBar { display:flex; align-items:center; justify-content:center; gap:10px; font-weight:900; color:var(--gold); font-size:clamp(16px,2.4vw,24px); letter-spacing:1px; }
+  #srcBadge { font-size:13px; color:#94a3b8; font-weight:600; }
+  #questionBox { background:#111c5c; border:2px solid #2a3a8a; border-radius:18px; padding:20px 26px; text-align:center; min-height:120px; display:flex; flex-direction:column; justify-content:center; gap:8px; }
+  #levelLabel { color:var(--gold); font-weight:900; font-size:15px; letter-spacing:.5px; }
+  #questionText { font-size:clamp(18px,2.6vw,30px); font-weight:800; line-height:1.4; }
+  #options { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .opt { display:flex; align-items:center; gap:12px; background:#111c5c; border:2px solid #2a3a8a; border-radius:14px; padding:14px 16px; color:#fff; font-size:clamp(16px,2vw,22px); text-align:left; min-height:64px; transition:background .15s,border-color .15s; }
+  .opt:hover { background:#1b2a6b; }
+  .opt .letter { background:var(--gold); color:#1c1917; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; flex-shrink:0; }
+  .opt.correct { background:#14532d !important; border-color:var(--ok) !important; }
+  .opt.wrong { background:#7f1d1d !important; border-color:var(--bad) !important; }
+  .opt.eliminated { opacity:.18; pointer-events:none; }
+  #lifelines { display:flex; gap:12px; justify-content:center; }
+  .ll { background:#1b2a6b; border:2px solid #2a3a8a; color:#fff; font-size:clamp(14px,1.8vw,19px); padding:12px 18px; }
+  .ll.used { opacity:.3; pointer-events:none; }
+  .ll.walk { background:#7f1d1d; border-color:#b91c1c; }
+
+  /* ---------- Feedback overlay ---------- */
+  #feedback { position:absolute; inset:0; background:rgba(5,8,30,.9); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; padding:30px; z-index:20; }
+  #fbEmoji { font-size:70px; }
+  #fbText { font-size:clamp(22px,3.6vw,42px); font-weight:900; }
+  #fbSub { font-size:clamp(16px,2.2vw,24px); color:#cbd5e1; max-width:760px; line-height:1.5; }
+  #audBars { width:min(560px,90%); display:flex; flex-direction:column; gap:8px; }
+  .abar { display:flex; align-items:center; gap:10px; font-size:15px; }
+  .abar .lbl { width:26px; font-weight:900; color:var(--gold); }
+  .abar .track { flex:1; background:#1e293b; border-radius:8px; height:26px; overflow:hidden; }
+  .abar .fill { height:100%; background:var(--gold); border-radius:8px; transition:width .6s; }
+  .abar .pct { width:44px; text-align:right; font-weight:700; }
+
+  /* ---------- END ---------- */
+  #endScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
+  #endTitle { margin:0; font-size:clamp(24px,4vw,44px); color:var(--gold); }
+  #endAmount { font-size:clamp(34px,6vw,72px); font-weight:900; }
+  #btnAgain { background:var(--gold); color:#1c1917; font-size:20px; padding:14px 34px; }
+  #endHome { color:#a5b4fc; font-size:16px; }
+</style>
+</head>
+<body>
+<div id="startScreen">
+  <div class="logo">💰</div>
+  <h1>WHO WANTS TO BE A MILLIONAIRE?</h1>
+  <p>Edisi Belajar — jawab 15 soal menuju Rp 1 Miliar</p>
+  <button id="btnMulai">▶ MULAI</button>
+  <div class="muted" id="srcName">Memuat soal...</div>
+</div>
+
+<div id="gameScreen" hidden>
+  <div id="ladder"></div>
+  <div id="main">
+    <div id="topBar">💰 WHO WANTS TO BE A MILLIONAIRE? <span id="srcBadge"></span></div>
+    <div id="questionBox">
+      <div id="levelLabel"></div>
+      <div id="questionText"></div>
+    </div>
+    <div id="options">
+      <button class="opt" data-i="0"><span class="letter">A</span><span class="txt"></span></button>
+      <button class="opt" data-i="1"><span class="letter">B</span><span class="txt"></span></button>
+      <button class="opt" data-i="2"><span class="letter">C</span><span class="txt"></span></button>
+      <button class="opt" data-i="3"><span class="letter">D</span><span class="txt"></span></button>
+    </div>
+    <div id="lifelines">
+      <button id="ll50" class="ll">✂️ 50:50</button>
+      <button id="llPhone" class="ll">📞 Telepon</button>
+      <button id="llAud" class="ll">👥 Penonton</button>
+      <button id="btnWalk" class="ll walk">🚪 Berhenti</button>
+    </div>
+  </div>
+  <div id="feedback" hidden>
+    <div id="fbEmoji"></div>
+    <div id="fbText"></div>
+    <div id="fbSub"></div>
+    <div id="audBars" hidden></div>
+    <button id="fbBtn" class="ll" hidden></button>
+  </div>
+</div>
+
+<div id="endScreen" hidden>
+  <div id="endEmoji" style="font-size:80px"></div>
+  <h2 id="endTitle"></h2>
+  <div id="endAmount"></div>
+  <button id="btnAgain">🔁 Main Lagi</button>
+  <a id="endHome" href="index.php">🏠 Kembali ke Beranda</a>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const LADDER = [100000,200000,300000,500000,1000000,2000000,4000000,8000000,16000000,32000000,64000000,125000000,250000000,500000000,1000000000];
+  const SAFE = [4, 9]; // indeks 0-based: level 5 (Rp1jt) & level 10 (Rp32jt)
+
+  const FALLBACK = [
+    { q:"Berpikir komputasional adalah cara memecahkan masalah secara…", o:["Logis, metodis, dan efisien","Acak dan cepat","Rumit dan panjang","Asal-asalan"], k:"A" },
+    { q:"Membagi masalah besar menjadi bagian-bagian kecil yang mudah dikelola disebut…", o:["Abstraksi","Dekomposisi","Algoritma","Pengenalan pola"], k:"B" },
+    { q:"Mengidentifikasi persamaan pola pada masalah yang berbeda disebut…", o:["Dekomposisi","Abstraksi","Pengenalan pola","Kompilasi"], k:"C" },
+    { q:"Membuang informasi yang tidak relevan dan fokus pada inti masalah disebut…", o:["Abstraksi","Dekomposisi","Algoritma","Simulasi"], k:"A" },
+    { q:"Serangkaian langkah yang jelas, berurutan, dan pasti berhenti disebut…", o:["Pola","Dekomposisi","Abstraksi","Algoritma"], k:"D" },
+    { q:"Memecah 'membuat nasi goreng' menjadi beberapa tahap kecil adalah contoh…", o:["Dekomposisi","Abstraksi","Algoritma","Pengenalan pola"], k:"A" },
+    { q:"Resep masakan yang ditulis berurutan adalah contoh dari pilar…", o:["Pengenalan pola","Algoritma","Abstraksi","Dekomposisi"], k:"B" },
+    { q:"Saat naik sepeda kita fokus pada keseimbangan tanpa memikirkan detail gir. Ini contoh…", o:["Dekomposisi","Algoritma","Abstraksi","Pengenalan pola"], k:"C" },
+    { q:"Langkah 'menumis bumbu' yang sama untuk mie goreng dan capcay adalah contoh…", o:["Pengenalan pola","Dekomposisi","Abstraksi","Kompilasi"], k:"A" },
+    { q:"Ciri algoritma yang baik: urutan jelas, tidak ambigu, dan…", o:["Panjang","Pasti berhenti setelah selesai","Boleh melompat-lompat","Tidak perlu berurutan"], k:"B" },
+    { q:"Empat pilar berpikir komputasional adalah…", o:["Dekomposisi, pola, abstraksi, algoritma","Input, proses, output, storage","Hardware, software, data, user","Kompilasi, eksekusi, debug, deploy"], k:"A" },
+    { q:"Pernyataan yang benar tentang berpikir komputasional adalah…", o:["Hanya untuk programmer","Hanya untuk pelajaran komputer","Berguna untuk semua orang","Hanya untuk orang dewasa"], k:"C" },
+    { q:"Manfaat berpikir komputasional antara lain…", o:["Melatih berpikir logis dan terstruktur","Membuat masalah makin rumit","Mengurangi kreativitas","Hanya berguna untuk matematika"], k:"A" },
+    { q:"Dalam tugas presentasi IPA, 'membagi tugas tiap anggota kelompok' termasuk…", o:["Abstraksi","Algoritma","Pengenalan pola","Dekomposisi"], k:"D" },
+    { q:"Hasil akhir dari tiga pilar dekomposisi, pola, dan abstraksi adalah…", o:["Algoritma","Dekomposisi","Pola baru","Abstraksi"], k:"A" }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const gameSlug = params.get('game') || '';
+
+  let questions = FALLBACK.slice(0, 15);
+  let srcName = 'Soal bawaan (demo)';
+  let idx = 0, current = null, phase = 'idle';
+  let eliminated = [];
+  const lifelines = { fifty: true, phone: true, audience: true };
+
+  const startScreen = $('startScreen'), gameScreen = $('gameScreen'), endScreen = $('endScreen');
+  const ladderEl = $('ladder'), levelLabel = $('levelLabel'), questionText = $('questionText'), srcBadge = $('srcBadge');
+  const optBtns = Array.from(document.querySelectorAll('.opt'));
+  const fb = $('feedback'), fbEmoji = $('fbEmoji'), fbText = $('fbText'), fbSub = $('fbSub'), audBars = $('audBars'), fbBtn = $('fbBtn');
+
+  function fmt(n) { return 'Rp ' + Number(n).toLocaleString('id-ID'); }
+  function letterIndex(k) { return ({ A:0, B:1, C:2, D:3 })[k] ?? 0; }
+  function wrongIndices() {
+    const ci = letterIndex(current.k);
+    const res = [];
+    for (let i = 0; i < current.o.length; i++) if (i !== ci) res.push(i);
+    return res;
+  }
+  function safeWin(failIdx) { let w = 0; for (const s of SAFE) if (s < failIdx) w = LADDER[s]; return w; }
+
+  async function loadQuestions() {
+    if (!gameSlug) { $('srcName').textContent = 'Soal bawaan (' + questions.length + ')'; return; }
+    try {
+      const res = await fetch('api/questions.php?game=' + encodeURIComponent(gameSlug) + '&order=asc', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const list = (data.soal || []).map(function (s) {
+        const o = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d].map(function (x) { return (x || '').trim(); }).filter(Boolean);
+        return { q: s.pertanyaan, o: o, k: (s.kunci || 'A').toUpperCase(), penjelasan: s.penjelasan || '' };
+      }).filter(function (s) { return s.o.length >= 2; });
+      if (list.length) { questions = list.slice(0, 15); srcName = (data.game && data.game.nama) || gameSlug; }
+      $('srcName').textContent = srcName + ' · ' + questions.length + ' soal';
+    } catch (e) {
+      $('srcName').textContent = '⚠️ Soal bawaan (' + questions.length + ') — API tak tersedia';
+    }
+  }
+
+  function buildLadder() {
+    ladderEl.innerHTML = '';
+    for (let i = 14; i >= 0; i--) {
+      const r = document.createElement('div');
+      r.className = 'rung' + (SAFE.includes(i) ? ' safe' : '');
+      r.innerHTML = '<span class="num">' + (i + 1) + '</span><span>' + fmt(LADDER[i]) + '</span>';
+      r.id = 'rung' + i;
+      ladderEl.appendChild(r);
+    }
+  }
+  function updateLadder() {
+    for (let i = 0; i < 15; i++) {
+      const r = document.getElementById('rung' + i);
+      if (r) r.classList.toggle('current', i === idx);
+    }
+  }
+
+  function showQuestion() {
+    current = questions[idx];
+    eliminated = [];
+    phase = 'question';
+    levelLabel.textContent = 'Soal ' + (idx + 1) + ' dari 15 · ' + fmt(LADDER[idx]);
+    questionText.textContent = current.q;
+    optBtns.forEach(function (b, i) {
+      const txt = b.querySelector('.txt');
+      if (i < current.o.length) { b.hidden = false; txt.textContent = current.o[i]; }
+      else { b.hidden = true; }
+      b.className = 'opt';
+    });
+    updateLadder();
+    fb.hidden = true;
+  }
+
+  function selectOption(i) {
+    if (phase !== 'question') return;
+    const correct = letterIndex(current.k) === i;
+    if (correct) {
+      phase = 'correct';
+      optBtns[i].classList.add('correct');
+      showFeedback('✅', 'BENAR!', current.penjelasan || ('Kamu menang ' + fmt(LADDER[idx]) + '!'));
+      setTimeout(function () {
+        idx++;
+        if (idx >= 15) { endGame(true); } else { showQuestion(); }
+      }, 1800);
+    } else {
+      phase = 'wrong';
+      optBtns[i].classList.add('wrong');
+      optBtns[letterIndex(current.k)].classList.add('correct');
+      const win = safeWin(idx);
+      showFeedback('❌', 'SALAH!', 'Jawaban benar: ' + current.o[letterIndex(current.k)] + '. ' + (current.penjelasan || ''));
+      setTimeout(function () { endGame(false, win); }, 2200);
+    }
+  }
+
+  function useFifty() {
+    if (!lifelines.fifty || phase !== 'question') return;
+    lifelines.fifty = false; $('ll50').classList.add('used');
+    const wrongs = wrongIndices().filter(function (i) { return !eliminated.includes(i); });
+    const pick = wrongs.length > 2 ? shuffle(wrongs).slice(0, 2) : wrongs;
+    pick.forEach(function (i) { eliminated.push(i); optBtns[i].classList.add('eliminated'); });
+  }
+  function usePhone() {
+    if (!lifelines.phone || phase !== 'question') return;
+    lifelines.phone = false; $('llPhone').classList.add('used');
+    const wrongs = wrongIndices().filter(function (i) { return !eliminated.includes(i); });
+    if (wrongs.length) {
+      const pick = shuffle(wrongs)[0];
+      eliminated.push(pick); optBtns[pick].classList.add('eliminated');
+    }
+    const ci = letterIndex(current.k);
+    showFeedback('📞', 'Telepon Teman', 'Temanmu berkata: "Menurutku jawabannya ' + (current.o[ci]) + '." (kira-kira 80% yakin)');
+  }
+  function useAudience() {
+    if (!lifelines.audience || phase !== 'question') return;
+    lifelines.audience = false; $('llAud').classList.add('used');
+    const ci = letterIndex(current.k);
+    const remaining = current.o.map(function (_, i) { return i; }).filter(function (i) { return !eliminated.includes(i); });
+    const total = remaining.length;
+    // beri suara: jawaban benar dominan
+    const votes = {};
+    let left = 100;
+    const mainPct = 55 + Math.floor(Math.random() * 36); // 55-90
+    votes[ci] = mainPct; left -= mainPct;
+    const others = remaining.filter(function (i) { return i !== ci; });
+    others.forEach(function (i, j) {
+      if (j === others.length - 1) { votes[i] = left; }
+      else { const v = Math.floor(Math.random() * (left - (others.length - 1 - j))); votes[i] = v; left -= v; }
+    });
+    audBars.innerHTML = '';
+    remaining.forEach(function (i) {
+      const row = document.createElement('div'); row.className = 'abar';
+      row.innerHTML = '<span class="lbl">' + ['A','B','C','D'][i] + '</span><div class="track"><div class="fill" style="width:' + (votes[i] || 0) + '%"></div></div><span class="pct">' + (votes[i] || 0) + '%</span>';
+      audBars.appendChild(row);
+    });
+    audBars.hidden = false;
+    showFeedback('👥', 'Suara Penonton', '');
+  }
+
+  function showFeedback(emoji, text, sub) {
+    fbEmoji.textContent = emoji; fbText.textContent = text; fbSub.textContent = sub || '';
+    fbBtn.hidden = true;
+    fb.hidden = false;
+  }
+
+  function walkAway() {
+    if (phase !== 'question') return;
+    const win = idx === 0 ? 0 : LADDER[idx - 1];
+    endGame(false, win, true);
+  }
+
+  function endGame(won, amount) {
+    phase = 'ended';
+    gameScreen.hidden = true; endScreen.hidden = false;
+    const final = won ? LADDER[14] : (amount ?? 0);
+    $('endEmoji').textContent = won ? '🏆' : '🎉';
+    $('endTitle').textContent = won ? 'SELAMAT! KAMU MENJADI MILIARDER!' : 'PERMAINAN SELESAI';
+    $('endAmount').textContent = final > 0 ? fmt(final) : 'Rp 0';
+  }
+
+  function shuffle(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = r[i]; r[i] = r[j]; r[j] = t; } return r; }
+
+  function startGame() {
+    idx = 0;
+    eliminated = [];
+    lifelines.fifty = lifelines.phone = lifelines.audience = true;
+    $('ll50').classList.remove('used'); $('llPhone').classList.remove('used'); $('llAud').classList.remove('used');
+    srcBadge.textContent = srcName;
+    startScreen.hidden = true; endScreen.hidden = true; gameScreen.hidden = false;
+    buildLadder();
+    showQuestion();
+  }
+
+  $('btnMulai').addEventListener('click', startGame);
+  $('btnAgain').addEventListener('click', function () { startGame(); });
+  optBtns.forEach(function (b) { b.addEventListener('click', function () { selectOption(parseInt(b.dataset.i, 10)); }); });
+  $('ll50').addEventListener('click', useFifty);
+  $('llPhone').addEventListener('click', usePhone);
+  $('llAud').addEventListener('click', useAudience);
+  $('btnWalk').addEventListener('click', walkAway);
+  $('fbBtn').addEventListener('click', function () { fb.hidden = true; });
+
+  loadQuestions();
+})();
+</script>
+</body>
+</html>

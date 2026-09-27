@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Clash of Champions — Portal MPI</title>
+<style>
+  :root { --red:#ef4444; --blue:#3b82f6; --gold:#f5c518; --navy:#0a0f3c; --panel:#111c5c; --ok:#22c55e; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--navy); color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select:none; }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:12px; font-weight:800; }
+  .muted { color:#94a3b8; }
+
+  #setupScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
+  #setupScreen h1 { margin:0; font-size:clamp(28px,5vw,56px); color:var(--gold); letter-spacing:1px; }
+  #setupScreen p { margin:0; color:#cbd5e1; font-size:clamp(15px,2vw,20px); }
+  #setupBox { display:flex; flex-direction:column; gap:12px; width:min(460px,92%); }
+  #setupBox .row { display:flex; align-items:center; gap:10px; }
+  #setupBox .row label { width:110px; text-align:right; color:#cbd5e1; }
+  #setupBox .row input { flex:1; padding:10px 12px; border-radius:9px; border:1px solid #334155; background:#0b1220; color:#fff; font-size:16px; }
+  #btnMulai { background:var(--gold); color:#1c1917; font-size:clamp(18px,2.4vw,24px); padding:14px 42px; margin-top:8px; }
+
+  #gameScreen { position:absolute; inset:0; display:flex; flex-direction:column; padding:14px 20px; gap:10px; }
+  #scorebar { display:flex; align-items:stretch; gap:12px; }
+  .teamcol { flex:1; border-radius:14px; padding:12px 18px; display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .teamcol.a { background:rgba(239,68,68,.18); border:2px solid var(--red); }
+  .teamcol.b { background:rgba(59,130,246,.18); border:2px solid var(--blue); }
+  .teamcol.active { box-shadow:0 0 0 4px rgba(245,197,24,.5); }
+  .teamcol .nm { font-size:clamp(16px,2.2vw,24px); font-weight:900; }
+  .teamcol .sc { font-size:clamp(30px,4.4vw,54px); font-weight:900; }
+  .teamcol.a .sc { color:#fca5a5; } .teamcol.b .sc { color:#93c5fd; }
+  #vs { align-self:center; font-size:clamp(18px,2.6vw,28px); font-weight:900; color:var(--gold); }
+  #qBox { text-align:center; }
+  #qLabel { color:var(--gold); font-weight:900; font-size:14px; letter-spacing:.5px; }
+  #qText { font-size:clamp(18px,2.6vw,30px); font-weight:800; line-height:1.35; }
+  #turnBanner { text-align:center; font-size:clamp(15px,2vw,20px); color:#cbd5e1; min-height:28px; font-weight:700; }
+  #options { display:grid; grid-template-columns:1fr 1fr; gap:12px; flex:1; align-content:center; }
+  .opt { display:flex; align-items:center; gap:12px; background:var(--panel); border:2px solid #2a3a8a; border-radius:14px; padding:12px 16px; color:#fff; font-size:clamp(16px,2vw,22px); text-align:left; min-height:60px; }
+  .opt .letter { background:var(--gold); color:#1c1917; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; flex-shrink:0; }
+  .opt.correct { background:#14532d !important; border-color:var(--ok) !important; }
+  .opt.eliminated { opacity:.18; pointer-events:none; }
+  #controls { display:flex; gap:12px; justify-content:center; align-items:stretch; }
+  .buzzer { flex:1; padding:18px 20px; font-size:clamp(18px,2.6vw,26px); font-weight:900; color:#fff; }
+  #buzA { background:var(--red); } #buzA.lock { box-shadow:0 0 0 4px #fff; }
+  #buzB { background:var(--blue); } #buzB.lock { box-shadow:0 0 0 4px #fff; }
+  .ctl { background:#1b2a6b; border:2px solid #2a3a8a; color:#fff; font-size:clamp(15px,2vw,19px); padding:12px 20px; }
+  #btnNext { background:var(--gold); color:#1c1917; }
+
+  #endScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
+  #endTitle { font-size:clamp(24px,4vw,44px); color:var(--gold); margin:0; }
+  #winnerBox { font-size:clamp(22px,3.6vw,44px); font-weight:900; }
+  #btnAgain { background:var(--gold); color:#1c1917; font-size:20px; padding:14px 34px; }
+  #endHome { color:#a5b4fc; font-size:16px; }
+</style>
+</head>
+<body>
+<div id="setupScreen">
+  <h1>⚔️ CLASH OF CHAMPIONS</h1>
+  <p>Adu cepat 2 tim · rebut jawaban benar</p>
+  <div id="setupBox">
+    <div class="row"><label>Nama Tim A</label><input id="nameA" value="Tim A"></div>
+    <div class="row"><label>Nama Tim B</label><input id="nameB" value="Tim B"></div>
+  </div>
+  <button id="btnMulai">▶ MULAI</button>
+  <div class="muted" id="srcName">Memuat soal...</div>
+</div>
+
+<div id="gameScreen" hidden>
+  <div id="scorebar">
+    <div class="teamcol a" id="colA"><span class="nm" id="nmA">Tim A</span><span class="sc" id="scA">0</span></div>
+    <div id="vs">VS</div>
+    <div class="teamcol b" id="colB"><span class="nm" id="nmB">Tim B</span><span class="sc" id="scB">0</span></div>
+  </div>
+  <div id="qBox"><div id="qLabel"></div><div id="qText"></div></div>
+  <div id="turnBanner"></div>
+  <div id="options"></div>
+  <div id="controls">
+    <button id="buzA" class="buzzer">🔴 TIM A</button>
+    <button id="btnNext" class="ctl">➡ Soal Berikutnya</button>
+    <a class="ctl" href="index.php" style="text-decoration:none;color:#fff">🏠</a>
+    <button id="buzB" class="buzzer">🔵 TIM B</button>
+  </div>
+</div>
+
+<div id="endScreen" hidden>
+  <div style="font-size:80px">🏆</div>
+  <h2 id="endTitle">CLASH SELESAI</h2>
+  <div id="winnerBox"></div>
+  <button id="btnAgain">🔁 Main Lagi</button>
+  <a id="endHome" href="index.php">🏠 Kembali ke Beranda</a>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const FALLBACK = [
+    { q:"Membagi masalah besar menjadi bagian kecil disebut…", o:["Abstraksi","Dekomposisi","Algoritma","Pengenalan pola"], k:"B" },
+    { q:"Mengenali persamaan pola pada masalah berbeda disebut…", o:["Dekomposisi","Abstraksi","Pengenalan pola","Kompilasi"], k:"C" },
+    { q:"Membuang informasi yang tidak relevan disebut…", o:["Abstraksi","Dekomposisi","Algoritma","Simulasi"], k:"A" },
+    { q:"Serangkaian langkah yang jelas dan berurutan disebut…", o:["Pola","Dekomposisi","Abstraksi","Algoritma"], k:"D" },
+    { q:"Resep masakan adalah contoh dari pilar…", o:["Pengenalan pola","Algoritma","Abstraksi","Dekomposisi"], k:"B" },
+    { q:"Fokus pada keseimbangan sepeda tanpa memikirkan detail gir adalah contoh…", o:["Dekomposisi","Algoritma","Abstraksi","Pengenalan pola"], k:"C" },
+    { q:"Langkah 'menumis bumbu' yang sama untuk mie goreng dan capcay adalah contoh…", o:["Pengenalan pola","Dekomposisi","Abstraksi","Kompilasi"], k:"A" },
+    { q:"Ciri algoritma yang baik: urutan jelas, tidak ambigu, dan…", o:["Panjang","Pasti berhenti setelah selesai","Boleh melompat-lompat","Tidak perlu berurutan"], k:"B" },
+    { q:"Empat pilar berpikir komputasional adalah…", o:["Dekomposisi, pola, abstraksi, algoritma","Input, proses, output, storage","Hardware, software, data, user","Kompilasi, eksekusi, debug, deploy"], k:"A" },
+    { q:"Berpikir komputasional berguna untuk…", o:["Hanya programmer","Hanya pelajaran komputer","Semua orang","Hanya orang dewasa"], k:"C" },
+    { q:"Manfaat berpikir komputasional antara lain…", o:["Melatih berpikir logis dan terstruktur","Membuat masalah makin rumit","Mengurangi kreativitas","Hanya berguna untuk matematika"], k:"A" },
+    { q:"Hasil akhir dari tiga pilar dekomposisi, pola, dan abstraksi adalah…", o:["Algoritma","Dekomposisi","Pola baru","Abstraksi"], k:"A" }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const gameSlug = params.get('game') || '';
+
+  let questions = FALLBACK.slice();
+  let srcName = 'Soal bawaan (demo)';
+  let teams = { A:{name:'Tim A',score:0}, B:{name:'Tim B',score:0} };
+  let qIndex = 0, current = null, claimant = null, eliminated = [], done = false;
+
+  const setupScreen = $('setupScreen'), gameScreen = $('gameScreen'), endScreen = $('endScreen');
+
+  async function loadQuestions() {
+    if (!gameSlug) { $('srcName').textContent = 'Soal bawaan (' + questions.length + ')'; return; }
+    try {
+      const res = await fetch('api/questions.php?game=' + encodeURIComponent(gameSlug), { cache:'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const list = (data.soal || []).map(function (s) {
+        const o = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d].map(function (x) { return (x || '').trim(); }).filter(Boolean);
+        return { q: s.pertanyaan, o: o, k: (s.kunci || 'A').toUpperCase() };
+      }).filter(function (s) { return s.o.length >= 2; });
+      if (list.length) { questions = list; srcName = (data.game && data.game.nama) || gameSlug; }
+      $('srcName').textContent = srcName + ' · ' + questions.length + ' soal';
+    } catch (e) {
+      $('srcName').textContent = '⚠️ Soal bawaan (' + questions.length + ') — API tak tersedia';
+    }
+  }
+
+  function letterIndex(k) { return ({ A:0, B:1, C:2, D:3 })[k] ?? 0; }
+
+  function startGame() {
+    teams.A = { name: ($('nameA').value.trim()) || 'Tim A', score: 0 };
+    teams.B = { name: ($('nameB').value.trim()) || 'Tim B', score: 0 };
+    qIndex = 0;
+    setupScreen.hidden = true; endScreen.hidden = true; gameScreen.hidden = false;
+    $('nmA').textContent = teams.A.name; $('nmB').textContent = teams.B.name;
+    showRound();
+  }
+
+  function showRound() {
+    current = questions[qIndex];
+    claimant = null; eliminated = []; done = false;
+    $('qLabel').textContent = 'Soal ' + (qIndex + 1) + ' dari ' + questions.length;
+    $('qText').textContent = current.q;
+    $('btnNext').hidden = true;
+    renderOptions();
+    renderScore();
+    updateTurn();
+  }
+
+  function renderOptions() {
+    const box = $('options');
+    box.innerHTML = '';
+    current.o.forEach(function (txt, i) {
+      const b = document.createElement('button');
+      b.className = 'opt'; b.dataset.i = i;
+      b.innerHTML = '<span class="letter">' + ['A','B','C','D'][i] + '</span><span>' + esc(txt) + '</span>';
+      b.addEventListener('click', function () { tapOption(i); });
+      box.appendChild(b);
+    });
+  }
+
+  function tapTeam(t) {
+    if (done || phase('lock')) return;
+    claimant = t;
+    updateTurn();
+  }
+  function phase(p) { return p === 'lock' && done; }
+
+  function tapOption(i) {
+    if (done || eliminated.includes(i)) return;
+    if (claimant === null) { flashTurn('👆 Pilih tim dulu (tekan buzzer Tim A / Tim B)!'); return; }
+    const correct = letterIndex(current.k) === i;
+    if (correct) {
+      done = true;
+      teams[claimant].score += 1;
+      document.querySelectorAll('.opt')[i].classList.add('correct');
+      renderScore();
+      flashTurn('✅ BENAR! +1 untuk ' + teams[claimant].name);
+      $('btnNext').hidden = false;
+    } else {
+      eliminated.push(i);
+      document.querySelectorAll('.opt')[i].classList.add('eliminated');
+      if (eliminated.length >= current.o.length - 1) {
+        done = true;
+        document.querySelectorAll('.opt')[letterIndex(current.k)].classList.add('correct');
+        flashTurn('❌ Tidak ada yang menjawab benar. Jawaban: ' + current.o[letterIndex(current.k)]);
+        $('btnNext').hidden = false;
+      } else {
+        claimant = (claimant === 'A') ? 'B' : 'A';
+        flashTurn('❌ Salah! Giliran ' + teams[claimant].name + ' merebut.');
+        updateTurn();
+      }
+    }
+  }
+
+  function updateTurn() {
+    $('colA').classList.toggle('active', claimant === 'A');
+    $('colB').classList.toggle('active', claimant === 'B');
+    $('buzA').classList.toggle('lock', claimant === 'A');
+    $('buzB').classList.toggle('lock', claimant === 'B');
+    $('turnBanner').textContent = claimant ? ('➡️ Giliran: ' + teams[claimant].name) : '👆 Tekan buzzer untuk menjawab';
+  }
+  function flashTurn(msg) { $('turnBanner').textContent = msg; }
+
+  function renderScore() {
+    $('scA').textContent = teams.A.score;
+    $('scB').textContent = teams.B.score;
+  }
+
+  function nextQuestion() {
+    if (qIndex + 1 >= questions.length) { endGame(); return; }
+    qIndex++;
+    showRound();
+  }
+
+  function endGame() {
+    gameScreen.hidden = true; endScreen.hidden = false;
+    let winner;
+    if (teams.A.score === teams.B.score) { winner = '🤝 Seri!'; }
+    else if (teams.A.score > teams.B.score) { winner = '🏆 ' + teams.A.name + ' menang (' + teams.A.score + ' - ' + teams.B.score + ')'; }
+    else { winner = '🏆 ' + teams.B.name + ' menang (' + teams.B.score + ' - ' + teams.A.score + ')'; }
+    $('winnerBox').textContent = winner;
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  $('btnMulai').addEventListener('click', startGame);
+  $('btnAgain').addEventListener('click', function () { endScreen.hidden = true; setupScreen.hidden = false; });
+  $('buzA').addEventListener('click', function () { tapTeam('A'); });
+  $('buzB').addEventListener('click', function () { tapTeam('B'); });
+  $('btnNext').addEventListener('click', nextQuestion);
+
+  loadQuestions();
+})();
+</script>
+</body>
+</html>

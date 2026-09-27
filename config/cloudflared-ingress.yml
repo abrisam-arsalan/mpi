@@ -1,0 +1,18 @@
+# Contoh isi /etc/cloudflared/config.yml
+# TAMBAHKAN baris hostname mpi.smp5tegal.sch.id ke ingress yang sudah ada.
+# Sesuaikan nama tunnel dengan yang sudah berjalan untuk "ujian".
+
+tunnel: <NAMA-TUNNEL-ANDA>
+credentials-file: /etc/cloudflared/<NAMA-TUNNEL-ANDA>.json
+
+ingress:
+  # --- Portal MPI (baru) ---
+  - hostname: mpi.smp5tegal.sch.id
+    service: http://localhost:80
+
+  # --- Aplikasi yang sudah ada (contoh) ---
+  - hostname: ujian.smp5tegal.sch.id
+    service: http://localhost:80
+
+  # Fallback wajib
+  - service: http_status:404

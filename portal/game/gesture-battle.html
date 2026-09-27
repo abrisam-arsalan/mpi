@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Gesture Battle — Portal MPI</title>
+<style>
+  :root { --gold:#f5c518; --navy:#0a0f3c; --panel:#111c5c; --ok:#22c55e; --bad:#ef4444; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--navy); color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select:none; }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:12px; font-weight:800; }
+  .muted { color:#94a3b8; }
+
+  #setupScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
+  #setupScreen h1 { margin:0; font-size:clamp(30px,5vw,56px); color:var(--gold); }
+  #setupScreen p { margin:0; color:#cbd5e1; font-size:clamp(15px,2vw,20px); }
+  #setupBox { display:flex; flex-direction:column; gap:10px; width:min(460px,92%); }
+  #setupBox .row { display:flex; align-items:center; gap:10px; }
+  #setupBox .row label { width:120px; text-align:right; color:#cbd5e1; }
+  #setupBox .row input, #setupBox .row select { flex:1; padding:10px 12px; border-radius:9px; border:1px solid #334155; background:#0b1220; color:#fff; font-size:16px; }
+  #btnMulai { background:var(--gold); color:#1c1917; font-size:clamp(18px,2.4vw,24px); padding:14px 42px; margin-top:8px; }
+
+  #gameScreen { position:absolute; inset:0; display:flex; flex-direction:column; padding:14px 20px; gap:12px; }
+  #scoreboard { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .team { display:flex; flex-direction:column; align-items:center; background:var(--panel); border:2px solid #2a3a8a; border-radius:12px; padding:8px 18px; min-width:110px; }
+  .team.active { border-color:var(--gold); background:#1b2a6b; }
+  .team .nm { font-size:14px; font-weight:800; }
+  .team .sc { font-size:24px; font-weight:900; color:var(--gold); }
+  #stage { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+  #timer { font-size:clamp(40px,7vw,80px); font-weight:900; color:#fff; }
+  #timer.low { color:var(--bad); }
+  #card { width:min(680px,92%); background:var(--panel); border:2px solid #2a3a8a; border-radius:20px; padding:26px 30px; text-align:center; cursor:pointer; min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
+  #kategori { color:var(--gold); font-weight:900; font-size:clamp(15px,2vw,22px); letter-spacing:.5px; }
+  #kata { font-size:clamp(30px,5vw,64px); font-weight:900; }
+  #kataCover { font-size:clamp(40px,6vw,72px); color:#64748b; }
+  #hint { color:#94a3b8; font-size:14px; }
+  #controls { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+  .ctl { background:#1b2a6b; border:2px solid #2a3a8a; color:#fff; font-size:clamp(15px,2vw,19px); padding:14px 22px; }
+  #btnBenar { background:var(--ok); color:#022c22; }
+  #btnLewati { background:var(--bad); color:#fff; }
+  #btnToggle { background:var(--gold); color:#1c1917; }
+
+  #endScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
+  #endTitle { font-size:clamp(24px,4vw,44px); color:var(--gold); margin:0; }
+  #winnerBox { font-size:clamp(22px,3.6vw,44px); font-weight:900; }
+  #endBoard { width:min(600px,92%); display:flex; flex-direction:column; gap:8px; }
+  .erow { display:flex; justify-content:space-between; background:var(--panel); border:1px solid #2a3a8a; border-radius:10px; padding:10px 18px; font-size:clamp(16px,2.2vw,22px); }
+  #btnAgain { background:var(--gold); color:#1c1917; font-size:20px; padding:14px 34px; }
+  #endHome { color:#a5b4fc; font-size:16px; }
+</style>
+</head>
+<body>
+<div id="setupScreen">
+  <h1>🙌 GESTURE BATTLE</h1>
+  <p>Tebak kata dari gerakan · tebak sebanyak-banyaknya</p>
+  <div id="setupBox">
+    <div class="row"><label>Jumlah tim</label>
+      <select id="teamCount">
+        <option value="2" selected>2 tim</option><option value="3">3 tim</option><option value="4">4 tim</option><option value="5">5 tim</option><option value="6">6 tim</option>
+      </select>
+    </div>
+    <div class="row"><label>Durasi per kartu (dtk)</label>
+      <select id="durasi">
+        <option value="30">30 detik</option><option value="45" selected>45 detik</option><option value="60">60 detik</option><option value="90">90 detik</option>
+      </select>
+    </div>
+    <div id="teamNames"></div>
+  </div>
+  <button id="btnMulai">▶ MULAI</button>
+  <div class="muted" id="srcName">Memuat kartu...</div>
+</div>
+
+<div id="gameScreen" hidden>
+  <div id="scoreboard"></div>
+  <div id="stage">
+    <div id="timer">⏱</div>
+    <div id="card">
+      <div id="kategori"></div>
+      <div id="kata" hidden></div>
+      <div id="kataCover">❓</div>
+      <div id="hint">👆 Ketuk kartu untuk lihat / sembunyikan kata</div>
+    </div>
+  </div>
+  <div id="controls">
+    <button id="btnToggle" class="ctl">🔍 Lihat Kata</button>
+    <button id="btnBenar" class="ctl">✅ Benar (+1)</button>
+    <button id="btnLewati" class="ctl">⏭ Lewati</button>
+    <a class="ctl" href="index.php" style="text-decoration:none;color:#fff">🏠</a>
+  </div>
+</div>
+
+<div id="endScreen" hidden>
+  <div style="font-size:80px">🏆</div>
+  <h2 id="endTitle">HASIL AKHIR</h2>
+  <div id="winnerBox"></div>
+  <div id="endBoard"></div>
+  <button id="btnAgain">🔁 Main Lagi</button>
+  <a id="endHome" href="index.php">🏠 Kembali ke Beranda</a>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const FALLBACK = [
+    { k:"Dekomposisi", c:"Berpikir Komputasional" },
+    { k:"Algoritma", c:"Berpikir Komputasional" },
+    { k:"Abstraksi", c:"Berpikir Komputasional" },
+    { k:"Pengenalan Pola", c:"Berpikir Komputasional" },
+    { k:"Membuat nasi goreng", c:"Aktivitas" },
+    { k:"Mengendarai sepeda", c:"Aktivitas" },
+    { k:"Menyusun puzzle", c:"Aktivitas" },
+    { k:"Menumis bumbu", c:"Aktivitas" },
+    { k:"Kucing", c:"Hewan" },
+    { k:"Gajah", c:"Hewan" },
+    { k:"Berenang", c:"Aktivitas" },
+    { k:"Menyapu", c:"Aktivitas" },
+    { k:"Dokter", c:"Profesi" },
+    { k:"Koki", c:"Profesi" },
+    { k:"Komputer", c:"Benda" }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const gameSlug = params.get('game') || '';
+
+  let cards = FALLBACK.slice();
+  let srcName = 'Kartu bawaan (demo)';
+  let deck = [], teams = [{name:'Tim 1',score:0},{name:'Tim 2',score:0}];
+  let currentTeam = 0, current = null, timeLeft = 45, durasi = 45, timerIv = null, revealed = false;
+
+  const setupScreen = $('setupScreen'), gameScreen = $('gameScreen'), endScreen = $('endScreen');
+
+  async function loadCards() {
+    if (!gameSlug) { $('srcName').textContent = 'Kartu bawaan (' + cards.length + ')'; return; }
+    try {
+      const res = await fetch('api/questions.php?game=' + encodeURIComponent(gameSlug), { cache:'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const list = (data.soal || []).map(function (s) {
+        const kt = (s.payload && s.payload.kategori) ? s.payload.kategori : '';
+        return { k: s.pertanyaan, c: kt };
+      }).filter(function (s) { return s.k !== ''; });
+      if (list.length) { cards = list; srcName = (data.game && data.game.nama) || gameSlug; }
+      $('srcName').textContent = srcName + ' · ' + cards.length + ' kartu';
+    } catch (e) {
+      $('srcName').textContent = '⚠️ Kartu bawaan (' + cards.length + ') — API tak tersedia';
+    }
+  }
+
+  function renderTeamNames() {
+    const n = parseInt($('teamCount').value, 10);
+    const box = $('teamNames');
+    box.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = '<label>Nama Tim ' + (i + 1) + '</label><input id="tname' + i + '" value="Tim ' + (i + 1) + '">';
+      box.appendChild(row);
+    }
+  }
+
+  function shuffle(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = r[i]; r[i] = r[j]; r[j] = t; } return r; }
+
+  function startGame() {
+    const n = parseInt($('teamCount').value, 10);
+    teams = [];
+    for (let i = 0; i < n; i++) {
+      const nm = document.getElementById('tname' + i);
+      teams.push({ name: (nm && nm.value.trim()) || ('Tim ' + (i + 1)), score: 0 });
+    }
+    durasi = parseInt($('durasi').value, 10);
+    currentTeam = 0;
+    deck = shuffle(cards.slice());
+    setupScreen.hidden = true; endScreen.hidden = true; gameScreen.hidden = false;
+    renderScoreboard();
+    nextCard();
+  }
+
+  function nextCard() {
+    if (deck.length === 0) deck = shuffle(cards.slice());
+    current = deck.pop();
+    currentTeam = (currentTeam + 1) % teams.length;
+    revealed = false;
+    $('kategori').textContent = current.c || 'Tanpa kategori';
+    $('kata').textContent = current.k;
+    $('kata').hidden = true;
+    $('kataCover').hidden = false;
+    $('btnToggle').textContent = '🔍 Lihat Kata';
+    renderScoreboard();
+    startTimer();
+  }
+
+  function startTimer() {
+    clearInterval(timerIv);
+    timeLeft = durasi;
+    updateTimer();
+    timerIv = setInterval(function () {
+      timeLeft--; updateTimer();
+      if (timeLeft <= 0) { clearInterval(timerIv); nextCard(); }
+    }, 1000);
+  }
+  function updateTimer() {
+    const t = $('timer');
+    t.textContent = timeLeft > 0 ? timeLeft + 's' : '⏰';
+    t.classList.toggle('low', timeLeft <= 10);
+  }
+
+  function renderScoreboard() {
+    const sb = $('scoreboard');
+    sb.innerHTML = '';
+    teams.forEach(function (t, i) {
+      const d = document.createElement('div');
+      d.className = 'team' + (i === currentTeam ? ' active' : '');
+      d.innerHTML = '<span class="nm">' + esc(t.name) + '</span><span class="sc">' + t.score + '</span>';
+      sb.appendChild(d);
+    });
+  }
+
+  function toggleReveal() {
+    revealed = !revealed;
+    $('kata').hidden = !revealed;
+    $('kataCover').hidden = revealed;
+    $('btnToggle').textContent = revealed ? '🙈 Sembunyikan' : '🔍 Lihat Kata';
+  }
+
+  function benar() {
+    teams[currentTeam].score += 1;
+    renderScoreboard();
+    nextCard();
+  }
+
+  function endGame() {
+    clearInterval(timerIv);
+    gameScreen.hidden = true; endScreen.hidden = false;
+    const sorted = teams.slice().sort(function (a, b) { return b.score - a.score; });
+    $('winnerBox').textContent = '🏆 ' + sorted[0].name + ' — ' + sorted[0].score + ' poin';
+    const eb = $('endBoard');
+    eb.innerHTML = '';
+    sorted.forEach(function (t, i) {
+      const r = document.createElement('div'); r.className = 'erow';
+      r.innerHTML = '<span>' + (i + 1) + '. ' + esc(t.name) + '</span><b>' + t.score + '</b>';
+      eb.appendChild(r);
+    });
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  $('teamCount').addEventListener('change', renderTeamNames);
+  $('btnMulai').addEventListener('click', startGame);
+  $('btnAgain').addEventListener('click', function () { endScreen.hidden = true; setupScreen.hidden = false; });
+  $('card').addEventListener('click', toggleReveal);
+  $('btnToggle').addEventListener('click', toggleReveal);
+  $('btnBenar').addEventListener('click', benar);
+  $('btnLewati').addEventListener('click', nextCard);
+  // tombol Selesai = link beranda + end manual: tambahkan tombol
+  document.addEventListener('DOMContentLoaded', function () {
+    const ctl = $('controls');
+    const end = document.createElement('button');
+    end.className = 'ctl'; end.textContent = '🏁 Selesai';
+    end.style.background = '#7f1d1d';
+    end.addEventListener('click', endGame);
+    ctl.insertBefore(end, ctl.lastElementChild);
+  });
+
+  renderTeamNames();
+  loadCards();
+})();
+</script>
+</body>
+</html>
