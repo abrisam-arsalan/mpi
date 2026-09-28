@@ -77,6 +77,10 @@ function mpi_user(): ?array {
 function mpi_require_login(): void {
     if (!mpi_user()) { mpi_redirect('login.php'); }
 }
+function mpi_is_admin(): bool {
+    $u = mpi_user();
+    return $u !== null && (($u['role'] ?? '') === 'admin');
+}
 
 // ---------- 6. CSRF ----------
 function mpi_csrf(): string {

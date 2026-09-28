@@ -41,12 +41,22 @@ CREATE TABLE IF NOT EXISTS mpi_games (
   CONSTRAINT fk_games_guru FOREIGN KEY (guru_id) REFERENCES mpi_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- -------------------- Mata pelajaran --------------------
+CREATE TABLE IF NOT EXISTS mpi_mapel (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  nama        VARCHAR(120) NOT NULL UNIQUE,
+  guru_id     INT UNSIGNED NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_mapel_guru FOREIGN KEY (guru_id) REFERENCES mpi_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 -- -------------------- Bank soal --------------------
 -- Struktur dasar A/B (cocok untuk game Benar-Salah & sejenis).
 -- Kolom `payload` (JSON) untuk format game lain (Famili 100, Millionaire, dll.)
 CREATE TABLE IF NOT EXISTS mpi_soal (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   game_id     INT UNSIGNED NOT NULL,
+  mapel_id    INT UNSIGNED NULL,
   pertanyaan  TEXT NOT NULL,
   opsi_a      VARCHAR(255) NOT NULL DEFAULT 'Benar',
   opsi_b      VARCHAR(255) NOT NULL DEFAULT 'Salah',
@@ -58,6 +68,7 @@ CREATE TABLE IF NOT EXISTS mpi_soal (
   guru_id     INT UNSIGNED NULL,
   created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_soal_game FOREIGN KEY (game_id) REFERENCES mpi_games(id) ON DELETE CASCADE,
+  CONSTRAINT fk_soal_mapel FOREIGN KEY (mapel_id) REFERENCES mpi_mapel(id) ON DELETE SET NULL,
   CONSTRAINT fk_soal_guru FOREIGN KEY (guru_id) REFERENCES mpi_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -80,3 +91,7 @@ INSERT INTO mpi_games (slug, nama, deskripsi, icon, file_path, tipe, urutan) VAL
    'Soal bertingkat menuju hadiah 1 miliar.', '💰',
    'millionaire.html', 'millionaire', 5)
 ON DUPLICATE KEY UPDATE slug = slug;
+
+-- -------------------- Mata pelajaran awal --------------------
+INSERT INTO mpi_mapel (nama) VALUES ('Informatika')
+ON DUPLICATE KEY UPDATE nama = nama;

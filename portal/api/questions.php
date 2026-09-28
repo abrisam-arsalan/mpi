@@ -20,12 +20,16 @@ try {
     }
 
     // Urutan soal: default acak; ?order=asc untuk urutan level (mis. Millionaire)
-    $order = (($_GET['order'] ?? '') === 'asc') ? 'id ASC' : 'RAND()';
-    $st = mpi_db()->prepare(
-        'SELECT id, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, kunci, penjelasan, payload
-         FROM mpi_soal WHERE game_id = ? ORDER BY ' . $order
-    );
-    $st->execute([$game['id']]);
+    $order = (($_GET['order'] ?? '') === 'asc') ? 's.id ASC' : 'RAND()';
+    $mapel = (int) ($_GET['mapel'] ?? 0);
+    $sql = 'SELECT s.id, s.pertanyaan, s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d, s.kunci, s.penjelasan, s.payload, m.nama AS mapel_nama
+            FROM mpi_soal s LEFT JOIN mpi_mapel m ON m.id = s.mapel_id
+            WHERE s.game_id = ?';
+    $params = [$game['id']];
+    if ($mapel > 0) { $sql .= ' AND s.mapel_id = ?'; $params[] = $mapel; }
+    $sql .= ' ORDER BY ' . $order;
+    $st = mpi_db()->prepare($sql);
+    $st->execute($params);
     $soal = $st->fetchAll();
 
     // Decode kolom JSON `payload` agar jadi objek/array, bukan string.
@@ -37,7 +41,15 @@ try {
     }
     unset($s);
 
-    echo json_encode(['game' => $game, 'soal' => $soal], JSON_UNESCAPED_UNICODE);
+    // Ringkasan mata pelajaran (nama unik dari soal)
+    $mapelNama = [];
+    foreach ($soal as $s) {
+        if (!empty($s['mapel_nama']) && !in_array($s['mapel_nama'], $mapelNama, true)) {
+            $mapelNama[] = $s['mapel_nama'];
+        }
+    }
+
+    echo json_encode(['game' => $game, 'mapel' => $mapelNama, 'soal' => $soal], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $ex) {
     http_response_code(500);
     echo json_encode(['error' => $ex->getMessage()], JSON_UNESCAPED_UNICODE);

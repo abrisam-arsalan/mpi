@@ -123,7 +123,7 @@
   async function loadQuestions() {
     if (!gameSlug) { $('srcName').textContent = 'Soal bawaan (' + questions.length + ')'; return; }
     try {
-      const res = await fetch('api/questions.php?game=' + encodeURIComponent(gameSlug), { cache:'no-store' });
+      const res = await fetch('/api/questions.php?game=' + encodeURIComponent(gameSlug), { cache:'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);

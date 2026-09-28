@@ -9,6 +9,9 @@ $src = 'game/' . ltrim($game['file_path'], '/');
 // Beri tahu game slug & id-nya agar bisa ambil soal dari API.
 $sep = (strpos($src, '?') === false) ? '?' : '&';
 $src .= $sep . 'game=' . urlencode($game['slug']) . '&id=' . (int) $game['id'];
+// Anti-cache: tambah versi berdasarkan waktu modifikasi file game
+$file = __DIR__ . '/game/' . ltrim($game['file_path'], '/');
+if (is_file($file)) { $src .= '&v=' . filemtime($file); }
 ?>
 <!doctype html>
 <html lang="id">
