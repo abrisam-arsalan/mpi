@@ -1,270 +1,770 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Gesture Battle — Portal MPI</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Gesture Battle — MPI SMP 5 Tegal</title>
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <style>
-  :root { --gold:#f5c518; --navy:#0a0f3c; --panel:#111c5c; --ok:#22c55e; --bad:#ef4444; }
-  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  [hidden] { display:none !important; }
-  html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--navy); color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select:none; }
-  button { font-family:inherit; cursor:pointer; border:none; border-radius:12px; font-weight:800; }
-  .muted { color:#94a3b8; }
+  :root {
+    --bg: #0b1024;
+    --panel: #121a3a;
+    --gold: #f5c518;
+    --ok: #22c55e;
+    --bad: #ef4444;
+    --p1: #3b82f6;
+    --p2: #f97316;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: var(--bg); color: #fff;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    user-select: none;
+  }
+  button {
+    font-family: inherit; cursor: pointer; border: none; border-radius: 12px;
+    font-weight: 800; font-size: 16px;
+  }
 
-  #setupScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
-  #setupScreen h1 { margin:0; font-size:clamp(30px,5vw,56px); color:var(--gold); }
-  #setupScreen p { margin:0; color:#cbd5e1; font-size:clamp(15px,2vw,20px); }
-  #setupBox { display:flex; flex-direction:column; gap:10px; width:min(460px,92%); }
-  #setupBox .row { display:flex; align-items:center; gap:10px; }
-  #setupBox .row label { width:120px; text-align:right; color:#cbd5e1; }
-  #setupBox .row input, #setupBox .row select { flex:1; padding:10px 12px; border-radius:9px; border:1px solid #334155; background:#0b1220; color:#fff; font-size:16px; }
-  #btnMulai { background:var(--gold); color:#1c1917; font-size:clamp(18px,2.4vw,24px); padding:14px 42px; margin-top:8px; }
+  /* ---------- Setup ---------- */
+  #setupScreen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; padding: 30px;
+    background: radial-gradient(circle at 50% 20%, #1b2a6b, #0b1024 65%);
+  }
+  #setupScreen h1 { margin: 0; font-size: clamp(34px, 6vw, 64px); color: var(--gold); text-align: center; }
+  #setupScreen p { margin: 0; color: #cbd5e1; font-size: clamp(15px, 2vw, 20px); text-align: center; max-width: 640px; }
+  .setup-box {
+    width: min(480px, 92%); background: var(--panel); border: 1px solid #2a3a8a;
+    border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .setup-row { display: flex; align-items: center; gap: 10px; }
+  .setup-row label { width: 130px; text-align: right; color: #cbd5e1; font-size: 14px; }
+  .setup-row input {
+    flex: 1; padding: 10px 12px; border-radius: 9px; border: 1px solid #334155;
+    background: #0b1220; color: #fff; font-size: 15px;
+  }
+  #btnStart {
+    background: var(--gold); color: #1c1917;
+    font-size: clamp(18px, 2.4vw, 24px); padding: 16px 48px; margin-top: 6px;
+  }
+  #btnStart:disabled { opacity: .5; cursor: not-allowed; }
+  .cam-hint { color: #94a3b8; font-size: 13px; text-align: center; max-width: 420px; }
+  #statusMsg { color: #f87171; font-size: 14px; min-height: 20px; text-align: center; }
 
-  #gameScreen { position:absolute; inset:0; display:flex; flex-direction:column; padding:14px 20px; gap:12px; }
-  #scoreboard { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
-  .team { display:flex; flex-direction:column; align-items:center; background:var(--panel); border:2px solid #2a3a8a; border-radius:12px; padding:8px 18px; min-width:110px; }
-  .team.active { border-color:var(--gold); background:#1b2a6b; }
-  .team .nm { font-size:14px; font-weight:800; }
-  .team .sc { font-size:24px; font-weight:900; color:var(--gold); }
-  #stage { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; }
-  #timer { font-size:clamp(40px,7vw,80px); font-weight:900; color:#fff; }
-  #timer.low { color:var(--bad); }
-  #card { width:min(680px,92%); background:var(--panel); border:2px solid #2a3a8a; border-radius:20px; padding:26px 30px; text-align:center; cursor:pointer; min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
-  #kategori { color:var(--gold); font-weight:900; font-size:clamp(15px,2vw,22px); letter-spacing:.5px; }
-  #kata { font-size:clamp(30px,5vw,64px); font-weight:900; }
-  #kataCover { font-size:clamp(40px,6vw,72px); color:#64748b; }
-  #hint { color:#94a3b8; font-size:14px; }
-  #controls { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
-  .ctl { background:#1b2a6b; border:2px solid #2a3a8a; color:#fff; font-size:clamp(15px,2vw,19px); padding:14px 22px; }
-  #btnBenar { background:var(--ok); color:#022c22; }
-  #btnLewati { background:var(--bad); color:#fff; }
-  #btnToggle { background:var(--gold); color:#1c1917; }
+  /* ---------- Game ---------- */
+  #gameScreen { position: absolute; inset: 0; }
+  #gameCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-  #endScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0a0f3c 60%); }
-  #endTitle { font-size:clamp(24px,4vw,44px); color:var(--gold); margin:0; }
-  #winnerBox { font-size:clamp(22px,3.6vw,44px); font-weight:900; }
-  #endBoard { width:min(600px,92%); display:flex; flex-direction:column; gap:8px; }
-  .erow { display:flex; justify-content:space-between; background:var(--panel); border:1px solid #2a3a8a; border-radius:10px; padding:10px 18px; font-size:clamp(16px,2.2vw,22px); }
-  #btnAgain { background:var(--gold); color:#1c1917; font-size:20px; padding:14px 34px; }
-  #endHome { color:#a5b4fc; font-size:16px; }
+  #hudTop {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 14px 18px; pointer-events: none;
+  }
+  .score-box {
+    background: rgba(10, 15, 40, .82); border: 2px solid;
+    border-radius: 14px; padding: 10px 18px; min-width: 120px; text-align: center;
+    backdrop-filter: blur(4px);
+  }
+  .score-box.p1 { border-color: var(--p1); box-shadow: 0 0 16px rgba(59,130,246,.25); }
+  .score-box.p2 { border-color: var(--p2); box-shadow: 0 0 16px rgba(249,115,22,.25); }
+  .score-box .name { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+  .score-box.p1 .name { color: var(--p1); }
+  .score-box.p2 .name { color: var(--p2); }
+  .score-box .score { font-size: 34px; font-weight: 900; color: #fff; line-height: 1; }
+
+  #questionBar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: min(720px, 52%); background: rgba(10,15,40,.88);
+    border: 1px solid #2a3a8a; border-radius: 16px; padding: 14px 22px;
+    text-align: center; pointer-events: none; backdrop-filter: blur(4px);
+  }
+  #questionText { font-size: clamp(18px, 2.4vw, 28px); font-weight: 800; line-height: 1.35; }
+  #questionMeta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+  #timerBox {
+    position: absolute; top: 86px; left: 50%; transform: translateX(-50%);
+    background: rgba(10,15,40,.8); border: 1px solid #2a3a8a; border-radius: 999px;
+    padding: 6px 18px; font-size: 20px; font-weight: 900; pointer-events: none;
+  }
+  #timerBox.low { color: var(--bad); border-color: var(--bad); }
+
+  #webcamPreview {
+    position: absolute; bottom: 14px; right: 14px;
+    width: min(220px, 26%); aspect-ratio: 4/3;
+    border-radius: 14px; border: 2px solid #2a3a8a;
+    background: #000; object-fit: cover; transform: scaleX(-1);
+    pointer-events: auto;
+  }
+
+  #gameControls {
+    position: absolute; bottom: 14px; left: 14px;
+    display: flex; gap: 10px; pointer-events: auto;
+  }
+  #gameControls button {
+    background: var(--panel); color: #fff; border: 1px solid #2a3a8a;
+    padding: 10px 16px; font-size: 14px;
+  }
+  #gameControls button#btnPause { background: var(--gold); color: #1c1917; }
+  #gameControls button#btnEnd { background: #7f1d1d; color: #fecaca; }
+
+  #pauseOverlay {
+    position: absolute; inset: 0; background: rgba(6,9,22,.78);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; backdrop-filter: blur(3px);
+  }
+  #pauseOverlay h2 { margin: 0; font-size: 42px; color: var(--gold); }
+  #pauseOverlay button { background: var(--gold); color: #1c1917; padding: 14px 32px; font-size: 18px; }
+
+  /* ---------- End ---------- */
+  #endScreen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; padding: 30px;
+    background: radial-gradient(circle at 50% 20%, #1b2a6b, #0b1024 65%);
+  }
+  #endScreen h2 { margin: 0; font-size: clamp(28px, 5vw, 52px); color: var(--gold); }
+  #winnerText { font-size: clamp(22px, 3.6vw, 40px); font-weight: 900; text-align: center; }
+  .end-scores {
+    display: flex; gap: 20px; width: min(520px, 92%); justify-content: center;
+  }
+  .end-score {
+    flex: 1; background: var(--panel); border: 2px solid; border-radius: 16px;
+    padding: 18px; text-align: center;
+  }
+  .end-score.p1 { border-color: var(--p1); }
+  .end-score.p2 { border-color: var(--p2); }
+  .end-score .nm { font-size: 14px; font-weight: 800; }
+  .end-score .sc { font-size: 42px; font-weight: 900; }
+  #endButtons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+  #endButtons button { padding: 14px 28px; font-size: 16px; }
+  #btnRestart { background: var(--gold); color: #1c1917; }
+  #btnHome { background: var(--panel); color: #fff; border: 1px solid #2a3a8a; }
+
+  .loader {
+    width: 34px; height: 34px; border: 4px solid rgba(245,197,24,.2);
+    border-top-color: var(--gold); border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
+
+<!-- SETUP -->
 <div id="setupScreen">
   <h1>🙌 GESTURE BATTLE</h1>
-  <p>Tebak kata dari gerakan · tebak sebanyak-banyaknya</p>
-  <div id="setupBox">
-    <div class="row"><label>Jumlah tim</label>
-      <select id="teamCount">
-        <option value="2" selected>2 tim</option><option value="3">3 tim</option><option value="4">4 tim</option><option value="5">5 tim</option><option value="6">6 tim</option>
-      </select>
+  <p>Arahkan tangan ke gelembung jawaban yang benar. Gelembung benar meletus <b>hijau</b>, salah meletus <b>merah</b>. Siapa yang paling cepat?</p>
+  <div class="setup-box">
+    <div class="setup-row">
+      <label for="p1Name">Nama Pemain Kiri</label>
+      <input id="p1Name" value="Siswa 1" maxlength="14">
     </div>
-    <div class="row"><label>Durasi per kartu (dtk)</label>
-      <select id="durasi">
-        <option value="30">30 detik</option><option value="45" selected>45 detik</option><option value="60">60 detik</option><option value="90">90 detik</option>
-      </select>
+    <div class="setup-row">
+      <label for="p2Name">Nama Pemain Kanan</label>
+      <input id="p2Name" value="Siswa 2" maxlength="14">
     </div>
-    <div id="teamNames"></div>
+    <div class="setup-row">
+      <label for="gameDuration">Durasi (detik)</label>
+      <input id="gameDuration" type="number" min="30" max="300" value="90">
+    </div>
   </div>
-  <button id="btnMulai">▶ MULAI</button>
-  <div class="muted" id="srcName">Memuat kartu...</div>
+  <button id="btnStart">▶ MULAI & AKTIFKAN KAMERA</button>
+  <div class="cam-hint">Game memerlukan akses kamera untuk mendeteksi posisi tangan. Data video hanya diproses di perangkat ini.</div>
+  <div id="statusMsg"></div>
 </div>
 
+<!-- GAME -->
 <div id="gameScreen" hidden>
-  <div id="scoreboard"></div>
-  <div id="stage">
-    <div id="timer">⏱</div>
-    <div id="card">
-      <div id="kategori"></div>
-      <div id="kata" hidden></div>
-      <div id="kataCover">❓</div>
-      <div id="hint">👆 Ketuk kartu untuk lihat / sembunyikan kata</div>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="hudTop">
+    <div class="score-box p1">
+      <div class="name" id="hudP1Name">Siswa 1</div>
+      <div class="score" id="hudP1Score">0</div>
+    </div>
+    <div class="score-box p2">
+      <div class="name" id="hudP2Name">Siswa 2</div>
+      <div class="score" id="hudP2Score">0</div>
     </div>
   </div>
-  <div id="controls">
-    <button id="btnToggle" class="ctl">🔍 Lihat Kata</button>
-    <button id="btnBenar" class="ctl">✅ Benar (+1)</button>
-    <button id="btnLewati" class="ctl">⏭ Lewati</button>
-    <a class="ctl" href="index.php" style="text-decoration:none;color:#fff">🏠</a>
+
+  <div id="questionBar">
+    <div id="questionText">Memuat soal…</div>
+    <div id="questionMeta"></div>
+  </div>
+
+  <div id="timerBox">⏱ <span id="timerValue">90</span></div>
+
+  <video id="webcamPreview" autoplay playsinline muted></video>
+
+  <div id="gameControls">
+    <button id="btnPause">⏸ Jeda</button>
+    <button id="btnEnd">🏁 Selesai</button>
+    <a href="index.php"><button>🏠</button></a>
+  </div>
+
+  <div id="pauseOverlay" hidden>
+    <h2>⏸ JEDA</h2>
+    <button id="btnResume">▶ Lanjutkan</button>
   </div>
 </div>
 
+<!-- END -->
 <div id="endScreen" hidden>
   <div style="font-size:80px">🏆</div>
-  <h2 id="endTitle">HASIL AKHIR</h2>
-  <div id="winnerBox"></div>
-  <div id="endBoard"></div>
-  <button id="btnAgain">🔁 Main Lagi</button>
-  <a id="endHome" href="index.php">🏠 Kembali ke Beranda</a>
+  <h2>HASIL AKHIR</h2>
+  <div id="winnerText"></div>
+  <div class="end-scores">
+    <div class="end-score p1">
+      <div class="nm" id="endP1Name">Siswa 1</div>
+      <div class="sc" id="endP1Score">0</div>
+    </div>
+    <div class="end-score p2">
+      <div class="nm" id="endP2Name">Siswa 2</div>
+      <div class="sc" id="endP2Score">0</div>
+    </div>
+  </div>
+  <div id="endButtons">
+    <button id="btnRestart">🔁 Main Lagi</button>
+    <a href="index.php"><button id="btnHome">🏠 Beranda</button></a>
+  </div>
 </div>
 
 <script>
 (function () {
   'use strict';
+
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const setupScreen = $('setupScreen'), gameScreen = $('gameScreen'), endScreen = $('endScreen');
+  const btnStart = $('btnStart'), statusMsg = $('statusMsg');
+  const canvas = $('gameCanvas'), ctx = canvas.getContext('2d');
+  const videoEl = $('webcamPreview');
+  const hudP1Name = $('hudP1Name'), hudP2Name = $('hudP2Name');
+  const hudP1Score = $('hudP1Score'), hudP2Score = $('hudP2Score');
+  const questionText = $('questionText'), questionMeta = $('questionMeta');
+  const timerBox = $('timerBox'), timerValue = $('timerValue');
+  const pauseOverlay = $('pauseOverlay');
+  const winnerText = $('winnerText');
+
+  // ---------- STATE ----------
+  const params = new URLSearchParams(location.search);
+  const gameSlug = params.get('game') || 'gesture-battle';
+
+  let p1Name = 'Siswa 1', p2Name = 'Siswa 2';
+  let durationSec = 90;
+  let score1 = 0, score2 = 0;
+  let timeLeft = 90, lastTime = 0, timerInterval = null, rafId = null;
+  let paused = false, gameEnded = false;
+
+  let questions = [];
+  let qIndex = 0;
+  let bubbles = [];
+  let particles = [];
+  let nextBubbleAt = 0;
+  let questionDeadline = 0;
+
+  const hands = [];
+  let camera = null;
+  let videoWidth = 0, videoHeight = 0;
+  let cooldown = { 1: 0, 2: 0 };
+
+  // ---------- FALLBACK SOAL ----------
   const FALLBACK = [
-    { k:"Dekomposisi", c:"Berpikir Komputasional" },
-    { k:"Algoritma", c:"Berpikir Komputasional" },
-    { k:"Abstraksi", c:"Berpikir Komputasional" },
-    { k:"Pengenalan Pola", c:"Berpikir Komputasional" },
-    { k:"Membuat nasi goreng", c:"Aktivitas" },
-    { k:"Mengendarai sepeda", c:"Aktivitas" },
-    { k:"Menyusun puzzle", c:"Aktivitas" },
-    { k:"Menumis bumbu", c:"Aktivitas" },
-    { k:"Kucing", c:"Hewan" },
-    { k:"Gajah", c:"Hewan" },
-    { k:"Berenang", c:"Aktivitas" },
-    { k:"Menyapu", c:"Aktivitas" },
-    { k:"Dokter", c:"Profesi" },
-    { k:"Koki", c:"Profesi" },
-    { k:"Komputer", c:"Benda" }
+    { pertanyaan: 'Manakah yang termasuk langkah berpikir komputasional?', opsi_a: 'Dekomposisi', opsi_b: 'Memasak', opsi_c: 'Berenang', opsi_d: 'Tidur', kunci: 'A' },
+    { pertanyaan: 'Langkah memecah masalah besar menjadi bagian kecil disebut?', opsi_a: 'Abstraksi', opsi_b: 'Dekomposisi', opsi_c: 'Algoritma', opsi_d: 'Pola', kunci: 'B' },
+    { pertanyaan: 'Serangkaian langkah terstruktur untuk menyelesaikan masalah disebut?', opsi_a: 'Pola', opsi_b: 'Abstraksi', opsi_c: 'Algoritma', opsi_d: 'Dekomposisi', kunci: 'C' },
+    { pertanyaan: 'Mengidentifikasi kesamaan pola dalam data adalah?', opsi_a: 'Abstraksi', opsi_b: 'Pengenalan Pola', opsi_c: 'Algoritma', opsi_d: 'Dekomposisi', kunci: 'B' },
+    { pertanyaan: 'Menyederhanakan masalah dengan fokus pada informasi penting adalah?', opsi_a: 'Dekomposisi', opsi_b: 'Pengenalan Pola', opsi_c: 'Abstraksi', opsi_d: 'Algoritma', kunci: 'C' },
+    { pertanyaan: 'Bagian pertama membuat nasi goreng?', opsi_a: 'Menyajikan', opsi_b: 'Menumis bumbu', opsi_c: 'Mencuci piring', opsi_d: 'Makan', kunci: 'B' },
+    { pertanyaan: 'Aktivitas yang membutuhkan urutan langkah?', opsi_a: 'Tidur', opsi_b: 'Mengendarai sepeda', opsi_c: 'Bermalas-malasan', opsi_d: 'Melihat langit', kunci: 'B' },
+    { pertanyaan: 'Hewan berikut yang memiliki belalai panjang?', opsi_a: 'Kucing', opsi_b: 'Gajah', opsi_c: 'Kupu-kupu', opsi_d: 'Ikan', kunci: 'B' },
+    { pertanyaan: 'Profesi yang memakai stetoskop?', opsi_a: 'Koki', opsi_b: 'Dokter', opsi_c: 'Pilot', opsi_d: 'Petani', kunci: 'B' },
+    { pertanyaan: 'Profesi yang memasak makanan di restoran?', opsi_a: 'Dokter', opsi_b: 'Guru', opsi_c: 'Koki', opsi_d: 'Sopir', kunci: 'C' }
   ];
 
-  const $ = (id) => document.getElementById(id);
-  const params = new URLSearchParams(location.search);
-  const gameSlug = params.get('game') || '';
-
-  let cards = FALLBACK.slice();
-  let srcName = 'Kartu bawaan (demo)';
-  let deck = [], teams = [{name:'Tim 1',score:0},{name:'Tim 2',score:0}];
-  let currentTeam = 0, current = null, timeLeft = 45, durasi = 45, timerIv = null, revealed = false;
-
-  const setupScreen = $('setupScreen'), gameScreen = $('gameScreen'), endScreen = $('endScreen');
-
-  async function loadCards() {
-    if (!gameSlug) { $('srcName').textContent = 'Kartu bawaan (' + cards.length + ')'; return; }
+  // ---------- API SOAL ----------
+  async function loadQuestions() {
     try {
-      const res = await fetch('api/questions.php?game=' + encodeURIComponent(gameSlug), { cache:'no-store' });
+      const res = await fetch('/api/questions.php?game=' + encodeURIComponent(gameSlug), { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const list = (data.soal || []).map(function (s) {
-        const kt = (s.payload && s.payload.kategori) ? s.payload.kategori : '';
-        return { k: s.pertanyaan, c: kt };
-      }).filter(function (s) { return s.k !== ''; });
-      if (list.length) { cards = list; srcName = (data.game && data.game.nama) || gameSlug; }
-      $('srcName').textContent = srcName + ' · ' + cards.length + ' kartu';
+      const list = (data.soal || []).map(normalizeQuestion).filter(q => q);
+      if (list.length) {
+        questions = shuffle(list);
+        questionMeta.textContent = 'Bank soal: ' + ((data.game && data.game.nama) || gameSlug);
+        return;
+      }
     } catch (e) {
-      $('srcName').textContent = '⚠️ Kartu bawaan (' + cards.length + ') — API tak tersedia';
+      console.warn('Gagal memuat soal API:', e);
     }
+    questions = shuffle(FALLBACK.map(normalizeQuestion).filter(q => q));
+    questionMeta.textContent = 'Soal bawaan (demo)';
   }
 
-  function renderTeamNames() {
-    const n = parseInt($('teamCount').value, 10);
-    const box = $('teamNames');
-    box.innerHTML = '';
-    for (let i = 0; i < n; i++) {
-      const row = document.createElement('div'); row.className = 'row';
-      row.innerHTML = '<label>Nama Tim ' + (i + 1) + '</label><input id="tname' + i + '" value="Tim ' + (i + 1) + '">';
-      box.appendChild(row);
+  function normalizeQuestion(s) {
+    const opsi = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d].filter((x, i, a) => x && a.indexOf(x) === i);
+    if (opsi.length < 2) return null;
+    const kunciIdx = Math.max(0, (s.kunci || 'A').toUpperCase().charCodeAt(0) - 65);
+    const kunci = opsi[Math.min(kunciIdx, opsi.length - 1)] || opsi[0];
+    return {
+      q: s.pertanyaan || 'Pilih jawaban yang benar',
+      options: opsi,
+      answer: kunci
+    };
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
     }
+    return arr;
   }
 
-  function shuffle(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = r[i]; r[i] = r[j]; r[j] = t; } return r; }
+  // ---------- MEDIAPIPE HANDS ----------
+  function initHands() {
+    const mpHands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    mpHands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.5
+    });
+    mpHands.onResults(onHandsResults);
+    return mpHands;
+  }
 
-  function startGame() {
-    const n = parseInt($('teamCount').value, 10);
-    teams = [];
-    for (let i = 0; i < n; i++) {
-      const nm = document.getElementById('tname' + i);
-      teams.push({ name: (nm && nm.value.trim()) || ('Tim ' + (i + 1)), score: 0 });
+  function onHandsResults(results) {
+    hands.length = 0;
+    if (!results.multiHandLandmarks || !results.multiHandedness) return;
+
+    for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+      const lm = results.multiHandLandmarks[i];
+      const label = results.multiHandedness[i].label; // 'Left' / 'Right'
+      // MediaPipe label is based on camera mirror. Because we mirror the video with CSS,
+      // from the player's point of view: the hand that appears on the left of the screen
+      // is actually the player's right hand and vice versa. We map by screen x-position instead.
+      const indexTip = lm[8];
+      const x = (1 - indexTip.x); // mirror to match CSS mirrored video
+      const y = indexTip.y;
+      hands.push({ x, y, label, rawX: indexTip.x, rawY: indexTip.y, lm });
     }
-    durasi = parseInt($('durasi').value, 10);
-    currentTeam = 0;
-    deck = shuffle(cards.slice());
-    setupScreen.hidden = true; endScreen.hidden = true; gameScreen.hidden = false;
-    renderScoreboard();
-    nextCard();
-  }
 
-  function nextCard() {
-    if (deck.length === 0) deck = shuffle(cards.slice());
-    current = deck.pop();
-    currentTeam = (currentTeam + 1) % teams.length;
-    revealed = false;
-    $('kategori').textContent = current.c || 'Tanpa kategori';
-    $('kata').textContent = current.k;
-    $('kata').hidden = true;
-    $('kataCover').hidden = false;
-    $('btnToggle').textContent = '🔍 Lihat Kata';
-    renderScoreboard();
-    startTimer();
-  }
-
-  function startTimer() {
-    clearInterval(timerIv);
-    timeLeft = durasi;
-    updateTimer();
-    timerIv = setInterval(function () {
-      timeLeft--; updateTimer();
-      if (timeLeft <= 0) { clearInterval(timerIv); nextCard(); }
-    }, 1000);
-  }
-  function updateTimer() {
-    const t = $('timer');
-    t.textContent = timeLeft > 0 ? timeLeft + 's' : '⏰';
-    t.classList.toggle('low', timeLeft <= 10);
-  }
-
-  function renderScoreboard() {
-    const sb = $('scoreboard');
-    sb.innerHTML = '';
-    teams.forEach(function (t, i) {
-      const d = document.createElement('div');
-      d.className = 'team' + (i === currentTeam ? ' active' : '');
-      d.innerHTML = '<span class="nm">' + esc(t.name) + '</span><span class="sc">' + t.score + '</span>';
-      sb.appendChild(d);
+    // Assign players by horizontal position on screen (after mirror)
+    hands.sort((a, b) => a.x - b.x);
+    hands.forEach((h, idx) => {
+      h.player = idx === 0 ? 1 : 2;
     });
   }
 
-  function toggleReveal() {
-    revealed = !revealed;
-    $('kata').hidden = !revealed;
-    $('kataCover').hidden = revealed;
-    $('btnToggle').textContent = revealed ? '🙈 Sembunyikan' : '🔍 Lihat Kata';
+  async function startCamera() {
+    const mpHands = initHands();
+
+    camera = new Camera(videoEl, {
+      onFrame: async () => { await mpHands.send({image: videoEl}); },
+      width: 640, height: 480
+    });
+    await camera.start();
+    videoWidth = videoEl.videoWidth || 640;
+    videoHeight = videoEl.videoHeight || 480;
   }
 
-  function benar() {
-    teams[currentTeam].score += 1;
-    renderScoreboard();
-    nextCard();
+  // ---------- GAME LOOP ----------
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  function startGame() {
+    p1Name = ($('p1Name').value || 'Siswa 1').trim().substring(0, 14);
+    p2Name = ($('p2Name').value || 'Siswa 2').trim().substring(0, 14);
+    durationSec = Math.max(30, Math.min(300, parseInt($('gameDuration').value, 10) || 90));
+
+    hudP1Name.textContent = p1Name;
+    hudP2Name.textContent = p2Name;
+    score1 = 0; score2 = 0;
+    timeLeft = durationSec;
+    qIndex = 0;
+    bubbles = [];
+    particles = [];
+    nextBubbleAt = 0;
+    cooldown = { 1: 0, 2: 0 };
+    paused = false; gameEnded = false;
+
+    updateScoreUI();
+    timerValue.textContent = Math.ceil(timeLeft);
+    timerBox.classList.remove('low');
+
+    setupScreen.hidden = true;
+    gameScreen.hidden = false;
+    endScreen.hidden = true;
+    pauseOverlay.hidden = true;
+
+    resizeCanvas();
+    loadQuestion();
+    lastTime = performance.now();
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (paused || gameEnded) return;
+      timeLeft -= 1;
+      timerValue.textContent = Math.ceil(timeLeft);
+      if (timeLeft <= 10) timerBox.classList.add('low');
+      if (timeLeft <= 0) endGame();
+    }, 1000);
+
+    if (rafId) cancelAnimationFrame(rafId);
+    requestAnimationFrame(gameLoop);
+  }
+
+  function loadQuestion() {
+    if (qIndex >= questions.length) qIndex = 0; // recycle
+    const q = questions[qIndex];
+    questionText.textContent = q.q;
+    bubbles = [];
+    nextBubbleAt = performance.now() + 300;
+    questionDeadline = performance.now() + 20000; // 20 detik per soal
+  }
+
+  function spawnBubbles(now) {
+    if (!questions[qIndex]) return;
+    if (now < nextBubbleAt) return;
+    const opts = questions[qIndex].options;
+    const total = opts.length;
+    if (bubbles.length >= total) return;
+
+    const margin = 70;
+    const usableW = canvas.width - margin * 2;
+    const cols = total;
+    const colW = usableW / cols;
+
+    // Create all bubbles at once for this question, staggered slightly in y
+    for (let i = 0; i < total; i++) {
+      const x = margin + colW * i + colW / 2 + (Math.random() - .5) * colW * .35;
+      const r = Math.min(68, Math.max(48, canvas.width / (total * 3.2)));
+      bubbles.push({
+        text: opts[i],
+        answer: opts[i] === questions[qIndex].answer,
+        x: x,
+        y: -r - i * 90 - Math.random() * 40,
+        r: r,
+        vx: (Math.random() - .5) * 0.6,
+        vy: 1.2 + Math.random() * 0.8,
+        wobble: Math.random() * Math.PI * 2,
+        active: true,
+        spawnAt: now + i * 180
+      });
+    }
+    nextBubbleAt = now + 10000; // prevent respawn until answered
+  }
+
+  function updateBubbles(dt) {
+    for (const b of bubbles) {
+      if (!b.active) continue;
+      b.y += b.vy * (60 * dt);
+      b.wobble += dt * 2;
+      b.x += Math.sin(b.wobble) * 0.3;
+      // reset if falls below screen
+      if (b.y - b.r > canvas.height + 20) {
+        b.y = -b.r - Math.random() * 50;
+        b.x = Math.max(b.r + 20, Math.min(canvas.width - b.r - 20, b.x));
+      }
+    }
+  }
+
+  function checkHandHits(now) {
+    for (const h of hands) {
+      const pid = h.player;
+      if (cooldown[pid] > now) continue;
+
+      const sx = h.x * canvas.width;
+      const sy = h.y * canvas.height;
+
+      for (const b of bubbles) {
+        if (!b.active) continue;
+        if (now < b.spawnAt + 400) continue; // small spawn immunity
+        const dx = sx - b.x;
+        const dy = sy - b.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < b.r * 1.15) {
+          popBubble(b, pid, now);
+          cooldown[pid] = now + 600;
+          break;
+        }
+      }
+    }
+  }
+
+  function popBubble(b, player, now) {
+    b.active = false;
+    const isCorrect = b.answer;
+    const color = isCorrect ? '#22c55e' : '#ef4444';
+
+    if (isCorrect) {
+      if (player === 1) score1++;
+      else score2++;
+      updateScoreUI();
+      createParticles(b.x, b.y, color, 22);
+      // advance to next question after short delay
+      setTimeout(() => {
+        if (gameEnded) return;
+        qIndex++;
+        loadQuestion();
+      }, 450);
+    } else {
+      createParticles(b.x, b.y, color, 14);
+      // Optional: small penalty? The user's spec says "salah gelembung meletus warna merah".
+      // We keep score unchanged to be friendly; red burst is enough feedback.
+    }
+  }
+
+  function createParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 2 + Math.random() * 5;
+      particles.push({
+        x, y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        life: 1,
+        decay: 0.02 + Math.random() * 0.03,
+        color,
+        size: 3 + Math.random() * 5
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.18; // gravity
+      p.life -= p.decay;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Background gradient
+    const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/3, 40, canvas.width/2, canvas.height/2, canvas.height);
+    grad.addColorStop(0, '#132056');
+    grad.addColorStop(1, '#0b1024');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw divider between player zones
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.setLineDash([12, 12]);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, 110);
+    ctx.lineTo(canvas.width / 2, canvas.height - 20);
+    ctx.stroke();
+    ctx.restore();
+
+    // Draw bubbles
+    for (const b of bubbles) {
+      if (!b.active) continue;
+      drawBubble(b);
+    }
+
+    // Draw hands
+    for (const h of hands) {
+      drawHandCursor(h);
+    }
+
+    // Draw particles
+    for (const p of particles) {
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBubble(b) {
+    const { x, y, r, text } = b;
+
+    // Glow
+    const glow = ctx.createRadialGradient(x, y, r * .2, x, y, r * 1.4);
+    glow.addColorStop(0, 'rgba(99,102,241,.35)');
+    glow.addColorStop(1, 'rgba(99,102,241,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bubble body
+    const bodyGrad = ctx.createRadialGradient(x - r*.3, y - r*.3, r*.1, x, y, r);
+    bodyGrad.addColorStop(0, 'rgba(255,255,255,.18)');
+    bodyGrad.addColorStop(.5, 'rgba(99,102,241,.25)');
+    bodyGrad.addColorStop(1, 'rgba(30,41,138,.45)');
+    ctx.fillStyle = bodyGrad;
+    ctx.strokeStyle = 'rgba(165,180,252,.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Shine
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.beginPath();
+    ctx.ellipse(x - r*.35, y - r*.35, r*.18, r*.1, -Math.PI/4, 0, Math.PI*2);
+    ctx.fill();
+
+    // Text
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const fontSize = Math.min(18, r / Math.max(3, text.length / 5));
+    ctx.font = `800 ${fontSize}px system-ui, sans-serif`;
+    wrapText(ctx, text, x, y, r * 1.7, fontSize * 1.25);
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    const lines = [];
+    let line = '';
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    const startY = y - ((lines.length - 1) * lineHeight) / 2;
+    lines.forEach((l, i) => ctx.fillText(l, x, startY + i * lineHeight));
+  }
+
+  function drawHandCursor(h) {
+    const sx = h.x * canvas.width;
+    const sy = h.y * canvas.height;
+    const color = h.player === 1 ? '#3b82f6' : '#f97316';
+
+    // Outer ring
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 22, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner dot
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Player label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('P' + h.player, sx, sy - 34);
+  }
+
+  function gameLoop(now) {
+    if (gameEnded) return;
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    if (!paused) {
+      spawnBubbles(now);
+      updateBubbles(dt);
+      checkHandHits(now);
+      updateParticles(dt);
+      if (now > questionDeadline && bubbles.length > 0) {
+        qIndex++;
+        loadQuestion();
+      }
+    }
+    draw();
+
+    rafId = requestAnimationFrame(gameLoop);
+  }
+
+  function updateScoreUI() {
+    hudP1Score.textContent = score1;
+    hudP2Score.textContent = score2;
   }
 
   function endGame() {
-    clearInterval(timerIv);
-    gameScreen.hidden = true; endScreen.hidden = false;
-    const sorted = teams.slice().sort(function (a, b) { return b.score - a.score; });
-    $('winnerBox').textContent = '🏆 ' + sorted[0].name + ' — ' + sorted[0].score + ' poin';
-    const eb = $('endBoard');
-    eb.innerHTML = '';
-    sorted.forEach(function (t, i) {
-      const r = document.createElement('div'); r.className = 'erow';
-      r.innerHTML = '<span>' + (i + 1) + '. ' + esc(t.name) + '</span><b>' + t.score + '</b>';
-      eb.appendChild(r);
-    });
+    gameEnded = true;
+    clearInterval(timerInterval);
+    cancelAnimationFrame(rafId);
+
+    if (camera && camera.stop) camera.stop();
+    const stream = videoEl.srcObject;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+
+    let msg = '';
+    if (score1 > score2) msg = `🏆 ${p1Name} MENANG!`;
+    else if (score2 > score1) msg = `🏆 ${p2Name} MENANG!`;
+    else msg = '🤝 SERI!';
+    winnerText.textContent = msg;
+
+    $('endP1Name').textContent = p1Name;
+    $('endP2Name').textContent = p2Name;
+    $('endP1Score').textContent = score1;
+    $('endP2Score').textContent = score2;
+
+    gameScreen.hidden = true;
+    endScreen.hidden = false;
   }
 
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-
-  $('teamCount').addEventListener('change', renderTeamNames);
-  $('btnMulai').addEventListener('click', startGame);
-  $('btnAgain').addEventListener('click', function () { endScreen.hidden = true; setupScreen.hidden = false; });
-  $('card').addEventListener('click', toggleReveal);
-  $('btnToggle').addEventListener('click', toggleReveal);
-  $('btnBenar').addEventListener('click', benar);
-  $('btnLewati').addEventListener('click', nextCard);
-  // tombol Selesai = link beranda + end manual: tambahkan tombol
-  document.addEventListener('DOMContentLoaded', function () {
-    const ctl = $('controls');
-    const end = document.createElement('button');
-    end.className = 'ctl'; end.textContent = '🏁 Selesai';
-    end.style.background = '#7f1d1d';
-    end.addEventListener('click', endGame);
-    ctl.insertBefore(end, ctl.lastElementChild);
+  // ---------- CONTROLS ----------
+  btnStart.addEventListener('click', async () => {
+    statusMsg.textContent = '';
+    btnStart.disabled = true;
+    try {
+      await loadQuestions();
+      await startCamera();
+      startGame();
+    } catch (e) {
+      console.error(e);
+      statusMsg.textContent = 'Gagal memulai: ' + (e.message || 'pastikan izin kamera diberikan.');
+      btnStart.disabled = false;
+    }
   });
 
-  renderTeamNames();
-  loadCards();
+  $('btnPause').addEventListener('click', () => { paused = true; pauseOverlay.hidden = false; });
+  $('btnResume').addEventListener('click', () => { paused = false; pauseOverlay.hidden = true; lastTime = performance.now(); });
+  $('btnEnd').addEventListener('click', endGame);
+  $('btnRestart').addEventListener('click', () => {
+    endScreen.hidden = true;
+    setupScreen.hidden = false;
+    btnStart.disabled = false;
+    statusMsg.textContent = '';
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+
+  // Keyboard fallback (spacebar = pause)
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !gameScreen.hidden && !gameEnded) {
+      paused = !paused;
+      pauseOverlay.hidden = !paused;
+      if (!paused) lastTime = performance.now();
+    }
+  });
 })();
 </script>
 </body>
