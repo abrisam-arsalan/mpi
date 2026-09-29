@@ -5,3 +5,6 @@ secrets.php
 *.log
 .DS_Store
 Thumbs.db
+
+# Vendor MediaPipe (diunduh di server via config/vendor-download.sh)
+portal/game/vendor/
