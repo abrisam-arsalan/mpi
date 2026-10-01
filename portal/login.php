@@ -2,20 +2,47 @@
 require __DIR__ . '/config.php';
 if (mpi_user()) { mpi_redirect('admin.php'); }
 
+// ------------------------------------------------------------
+// Pembatas percobaan login (anti brute-force) berbasis session.
+// Panel ini terbuka ke internet, jadi tanpa pembatas siapa pun bisa
+// mencoba password berulang kali tanpa hambatan. Tidak perlu tabel baru.
+// ------------------------------------------------------------
+$MAX_GAGAL   = 5;    // jumlah percobaan gagal sebelum dikunci
+$KUNCI_DETIK = 60;   // lama kunci (detik)
+
 $error = '';
+$now = time();
+if (!isset($_SESSION['login_gagal']))        { $_SESSION['login_gagal'] = 0; }
+if (!isset($_SESSION['login_kunci_sampai'])) { $_SESSION['login_kunci_sampai'] = 0; }
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mpi_csrf_check();
-    $u = trim($_POST['username'] ?? '');
-    $p = $_POST['password'] ?? '';
-    $st = mpi_db()->prepare('SELECT * FROM mpi_users WHERE username = ?');
-    $st->execute([$u]);
-    $row = $st->fetch();
-    if ($row && password_verify($p, $row['password_hash'])) {
-        session_regenerate_id(true);
-        $_SESSION['uid'] = (int) $row['id'];
-        mpi_redirect('admin.php');
+    if ($_SESSION['login_kunci_sampai'] > $now) {
+        $sisa = (int) ($_SESSION['login_kunci_sampai'] - $now);
+        $error = 'Terlalu banyak percobaan gagal. Coba lagi dalam ' . $sisa . ' detik.';
+    } else {
+        $u = trim($_POST['username'] ?? '');
+        $p = $_POST['password'] ?? '';
+        $st = mpi_db()->prepare('SELECT * FROM mpi_users WHERE username = ?');
+        $st->execute([$u]);
+        $row = $st->fetch();
+        if ($row && password_verify($p, $row['password_hash'])) {
+            // Berhasil: bersihkan penghitung lalu amankan session.
+            $_SESSION['login_gagal'] = 0;
+            $_SESSION['login_kunci_sampai'] = 0;
+            session_regenerate_id(true);
+            $_SESSION['uid'] = (int) $row['id'];
+            mpi_redirect('admin.php');
+        }
+        $_SESSION['login_gagal']++;
+        if ($_SESSION['login_gagal'] >= $MAX_GAGAL) {
+            $_SESSION['login_gagal'] = 0;
+            $_SESSION['login_kunci_sampai'] = $now + $KUNCI_DETIK;
+            $error = 'Terlalu banyak percobaan gagal. Coba lagi dalam ' . $KUNCI_DETIK . ' detik.';
+        } else {
+            $error = 'Username atau password salah.';
+        }
     }
-    $error = 'Username atau password salah.';
 }
 ?>
 <!doctype html>
