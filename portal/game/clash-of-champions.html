@@ -25,7 +25,7 @@
   .kartu h3{margin:0;color:var(--gold);font-size:clamp(15px,2vw,20px)}
   .trow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .trow .lbl{min-width:64px;font-weight:800;color:#cbd5e1;font-size:clamp(13px,1.6vw,16px)}
-  .trow input,.trow select,select.std,input.std{padding:10px 12px;border-radius:9px;border:1px solid #334155;background:#0b1220;color:#fff;font-size:clamp(14px,1.6vw,17px);font-family:inherit}
+  .trow input,.trow select,select.std,input.std{padding:10px 12px;border-radius:9px;border:1px solid #334155;background:#0b1220;color:#fff;font-size:clamp(14px,1.6vw,17px);font-family:inherit;min-height:44px}
   .trow input{flex:1;min-width:130px}
   .trow select{flex:1;min-width:170px}
   .barisKontrol{display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:center}
@@ -162,7 +162,7 @@
     <h3>👥 Tim &amp; Strategi (Langkah 2)</h3>
     <div class="barisKontrol">
       <label>Jumlah tim
-        <select id="teamCount">
+        <select class="std" id="teamCount">
           <option value="2" selected>2 tim</option><option value="3">3 tim</option><option value="4">4 tim</option>
           <option value="5">5 tim</option><option value="6">6 tim</option><option value="7">7 tim</option><option value="8">8 tim</option>
         </select>
@@ -176,7 +176,7 @@
     <h3>⚙️ Pengaturan Permainan</h3>
     <div class="barisKontrol">
       <label>Jumlah soal
-        <select id="qCountSel">
+        <select class="std" id="qCountSel">
           <option value="10">10 kotak</option><option value="20">20 kotak</option>
           <option value="30">30 kotak</option><option value="40" selected>40 kotak</option>
         </select>
@@ -185,7 +185,7 @@
         <input class="std" id="durasiInput" type="number" min="1" max="180" value="15" style="width:96px" />
       </label>
       <label>Waktu menjawab
-        <select id="jawabDurasiSel">
+        <select class="std" id="jawabDurasiSel">
           <option value="10" selected>10 detik</option><option value="15">15 detik</option>
           <option value="20">20 detik</option><option value="30">30 detik</option>
         </select>
@@ -446,12 +446,17 @@
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      const baris = (data.soal || []).length;
       const list = (data.soal || []).map(normPG).filter(Boolean);
       if (list.length > 0) {
         soalBank = list;
         setSrc(((data.game && data.game.nama) || gameSlug) + ' · ' + soalBank.length + ' soal');
+      } else if (baris === 0) {
+        // Bank soal game ini memang belum diisi guru — bukan tanda API rusak.
+        setSrc('⚠️ Bank soal kosong — pakai Soal bawaan (' + soalBank.length + ')');
       } else {
-        setSrc('⚠️ Soal bawaan (' + soalBank.length + ') — data API tidak valid');
+        // Ada barisnya, tapi tidak satu pun berbentuk pilihan ganda 4 opsi yang sah.
+        setSrc('⚠️ Bank soal belum punya soal 4 opsi — pakai Soal bawaan (' + soalBank.length + ')');
       }
     } catch (e) {
       setSrc('⚠️ Soal bawaan (' + soalBank.length + ') — API tak tersedia');
@@ -905,6 +910,9 @@
 
   function endGame(alasan) {
     if (fase === 'SELESAI') return;
+    // Tanpa tim, layar hasil akan kosong dan peringkat tak bisa dihitung —
+    // mencegah layar hasil rusak bila tombol Selesai tersentuh sebelum mulai.
+    if (tim.length === 0) { toast('Belum ada tim yang bermain — tekan ▶ START GAME dulu.'); return; }
     fase = 'SELESAI';
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     ['resultOverlay', 'pauseOverlay', 'countOverlay', 'helpPanel'].forEach((id) => { $(id).hidden = true; });

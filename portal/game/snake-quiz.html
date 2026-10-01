@@ -471,8 +471,14 @@
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       const list = (data.soal || []).map(normPG).filter(Boolean);
-      if (list.length) questions = list;
-      setSrc(((data.game && data.game.nama) || gameSlug) + ' · ' + questions.length + ' soal');
+      if (list.length) {
+        questions = list;
+        setSrc(((data.game && data.game.nama) || gameSlug) + ' · ' + questions.length + ' soal');
+      } else {
+        // Bank soal kosong: pakai soal bawaan, dan katakan apa adanya ke guru
+        // (sebelumnya label ini tampak seolah soal berhasil diambil dari portal).
+        setSrc('⚠️ Bank soal kosong — pakai Soal bawaan (' + questions.length + ')');
+      }
     } catch (e) {
       setSrc('⚠️ Soal bawaan (' + questions.length + ') — API tak tersedia');
     }
