@@ -78,7 +78,7 @@
     <button id="btnReveal" class="btn-warn" hidden>🔒 Kunci Jawaban</button>
     <button id="btnNext" class="btn-primary" hidden>➡ Soal Berikutnya</button>
     <button id="btnCal" class="btn-secondary">⚙️ Kalibrasi</button>
-    <a id="btnQuit" class="btn-secondary" href="index.php" style="text-decoration:none;color:#e2e8f0">🏠 Kembali</a>
+    <a id="btnQuit" class="btn-secondary" href="../index.php" style="text-decoration:none;color:#e2e8f0">🏠 Kembali</a>
   </div>
 
   <div id="loading" hidden><div class="spinner"></div><div id="loadingText">Memuat...</div></div>
@@ -285,7 +285,17 @@
       phase = 'ready';
       btnStart.hidden = false;
       btnStart.textContent = '▶ Mulai';
-    } catch (e) { alert('⚠️ ' + (e.message || 'Gagal memuat.')); }
+    } catch (e) {
+      // Jangan pakai alert(): dialog bawaan browser mengganggu di layar IFP dan
+      // tidak memberi jalan keluar. Tampilkan pesannya di tombol agar guru bisa
+      // langsung mengetuk untuk mencoba lagi setelah izin kamera diperbaiki.
+      gameActive = false;
+      phase = 'idle';
+      btnStart.hidden = false;
+      btnStart.disabled = false;
+      btnStart.textContent = '⚠️ ' + (e.message || 'Gagal memuat kamera/model') + ' — ketuk untuk coba lagi';
+      console.error('Gagal memulai:', e);
+    }
   }
   function startCountdown() {
     phase = 'countdown';
@@ -344,7 +354,12 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   // ---------- Event ----------
-  btnStart.addEventListener('click', function () { if (phase === 'ended') { begin(); return; } if (phase === 'ready') startCountdown(); });
+  btnStart.addEventListener('click', function () {
+    // 'idle' terjadi bila begin() gagal (mis. izin kamera ditolak) — tombol
+    // harus tetap bisa dipakai untuk mencoba lagi.
+    if (phase === 'idle' || phase === 'ended') { begin(); return; }
+    if (phase === 'ready') { startCountdown(); }
+  });
   btnReveal.addEventListener('click', function () { if (phase === 'playing') { clearInterval(timerInterval); reveal(); } });
   btnNext.addEventListener('click', nextRound);
   btnCal.addEventListener('click', function () { calPanel.hidden = !calPanel.hidden; });

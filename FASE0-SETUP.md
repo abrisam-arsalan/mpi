@@ -138,3 +138,34 @@ systemctl status cloudflared
 cloudflared tunnel list
 sudo tail -f /var/log/nginx/error.log
 ```
+
+### Bila `/api/questions.php` mengembalikan HTTP 500
+
+Penyebab paling sering: **koneksi database gagal** (kredensial di
+`/var/www/mpi/secrets.php` tidak cocok), atau **path `require` salah**.
+`questions.php` ada di subfolder `api/`, jadi harus memakai
+`require dirname(__DIR__) . '/config.php';` — bukan `__DIR__ . '/config.php'`
+(yang menunjuk ke `portal/api/config.php` dan tidak ada).
+
+Cek cepat:
+
+```bash
+cd /var/www/mpi/portal
+php -r 'require dirname(__DIR__)."/secrets.php"; var_dump(MPI_DB_USER, MPI_DB_NAME);'
+sudo mysql -u mpi_user -p mpi_db -e "SELECT COUNT(*) FROM mpi_games;"
+curl -s -o /dev/null -w '%{http_code}\n' 'https://mpi.smp5tegal.sch.id/api/questions.php?game=famili-100'
+```
+
+Hasil yang benar: `200` dan berisi JSON `{"game":...,"soal":[...]}` dengan
+`Access-Control-Allow-Origin: *`. Bila `soal` kosong, bank soal untuk game itu
+memang belum diisi — game akan otomatis memakai soal bawaan.
+
+### Setelah `git pull`, lakukan ini
+
+```bash
+cd /var/www/mpi/portal && sudo mysql mpi_db < migration-v3.sql   # 4 game baru
+sudo bash /var/www/mpi/config/vendor-download.sh                 # model MediaPipe
+```
+
+> `create-admin.php` sekarang **menolak akses dari browser** (hanya bisa
+> dijalankan lewat CLI). Jalankan dengan: `php create-admin.php admin 'Password'`.

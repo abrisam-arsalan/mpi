@@ -1,5 +1,9 @@
 <?php
-require __DIR__ . '/config.php';
+// File ini ada di subfolder api/, sedangkan config.php ada satu tingkat di atas
+// (portal/config.php). Memakai __DIR__ . '/config.php' akan menunjuk ke
+// portal/api/config.php yang tidak ada → fatal error → HTTP 500 pada SEMUA
+// permintaan bank soal. Karena itu path-nya harus naik satu tingkat.
+require dirname(__DIR__) . '/config.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Cache-Control: no-store');

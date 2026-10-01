@@ -7,6 +7,15 @@
  *   nano ../secrets.php
  */
 
+// File ini hanya contoh. Tolak akses langsung dari browser (tidak boleh
+// dieksekusi sebagai halaman), tetapi tetap boleh di-require dari config.php.
+if (PHP_SAPI !== 'cli'
+    && isset($_SERVER['SCRIPT_FILENAME'])
+    && @realpath($_SERVER['SCRIPT_FILENAME']) === @realpath(__FILE__)) {
+    http_response_code(404);
+    exit('Not Found');
+}
+
 // ---- Database (harus sama dengan yang dipakai di db.sql) ----
 define('MPI_DB_HOST', '127.0.0.1');
 define('MPI_DB_NAME', 'mpi_db');
