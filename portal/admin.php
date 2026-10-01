@@ -6,46 +6,52 @@ $isAdmin = mpi_is_admin();
 $db = mpi_db();
 
 // ============================================================
-// Helper AI (Gemini) & parser
+// Helper parser CSV bank soal
+// (Pembuatan soal otomatis dengan AI sudah DINONAKTIFKAN — soal dibuat
+//  manual lewat editor Bank Soal atau diimpor dari template CSV.)
 // ============================================================
-function mpi_gemini(string $prompt): string {
-    if (!MPI_GEMINI_KEY) { throw new Exception('API key Gemini belum diisi di secrets.php (MPI_GEMINI_KEY).'); }
-    $model = MPI_GEMINI_MODEL ?: 'gemini-2.0-flash';
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . urlencode($model) . ':generateContent?key=' . urlencode(MPI_GEMINI_KEY);
-    $body = json_encode(['contents' => [['parts' => [['text' => $prompt]]]]]);
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json'], CURLOPT_POSTFIELDS => $body, CURLOPT_TIMEOUT => 90]);
-    $res = curl_exec($ch); $err = curl_error($ch); curl_close($ch);
-    if ($err) { throw new Exception('cURL error: ' . $err); }
-    $data = json_decode((string) $res, true);
-    if (isset($data['error'])) { throw new Exception('Gemini: ' . ($data['error']['message'] ?? 'error tidak diketahui')); }
-    $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-    if ($text === '') { throw new Exception('Gemini mengembalikan teks kosong.'); }
-    return $text;
-}
-function mpi_extract_json_array(string $text): array {
-    $text = trim($text);
-    $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
-    $text = preg_replace('/\s*```$/', '', $text);
-    $start = strpos($text, '['); $end = strrpos($text, ']');
-    if ($start === false || $end === false || $end <= $start) { throw new Exception('Jawaban AI bukan JSON array.'); }
-    $arr = json_decode(substr($text, $start, $end - $start + 1), true);
-    if (!is_array($arr)) { throw new Exception('JSON tidak valid: ' . json_last_error_msg()); }
-    return $arr;
-}
 function mpi_parse_csv_soal(string $text): array {
     $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $text))));
     if (!$lines) { throw new Exception('File kosong.'); }
     $delim = (substr_count($lines[0], ';') >= 3) ? ';' : ',';
     $rows = []; foreach ($lines as $l) { $rows[] = str_getcsv($l, $delim); }
+    // Kenali bentuk file: 4 opsi (soal;A;B;C;D;kunci;penjelasan) atau lama A/B (soal;A;B;kunci;penjelasan).
+    $four = false;
+    if ($rows) {
+        $head = array_map(function ($c) { return strtolower(trim((string) $c)); }, $rows[0]);
+        if (in_array('opsic', $head, true) || in_array('opsi_c', $head, true) || in_array('opsid', $head, true) || in_array('opsi_d', $head, true)) { $four = true; }
+        if (!$four && preg_match('/soal/i', (string) ($rows[0][0] ?? ''))) { $four = count($head) >= 6; }
+    }
     if ($rows && preg_match('/soal/i', (string) ($rows[0][0] ?? ''))) { array_shift($rows); }
     $out = [];
     foreach ($rows as $r) {
         $q = trim($r[0] ?? ''); if ($q === '') { continue; }
-        $A = trim($r[1] ?? '') ?: 'Benar'; $B = trim($r[2] ?? '') ?: 'Salah';
-        $k = strtoupper(trim($r[3] ?? ''));
-        if ($k !== 'A' && $k !== 'B') { if ($k === strtoupper($A)) { $k = 'A'; } elseif ($k === strtoupper($B)) { $k = 'B'; } else { throw new Exception('Kunci tidak dikenali: "' . mb_substr($q, 0, 40) . '"'); } }
-        $out[] = ['pertanyaan' => $q, 'opsi_a' => $A, 'opsi_b' => $B, 'kunci' => $k, 'penjelasan' => trim($r[4] ?? '')];
+        if ($four) {
+            $A = trim($r[1] ?? ''); $B = trim($r[2] ?? ''); $C = trim($r[3] ?? ''); $D = trim($r[4] ?? '');
+            if ($A === '' || $B === '') { throw new Exception('Opsi A dan B wajib diisi: "' . mb_substr($q, 0, 40) . '"'); }
+            $list = [$A, $B, $C, $D];
+            $k = strtoupper(trim($r[5] ?? '')); $penjelasan = trim($r[6] ?? '');
+        } else {
+            $A = trim($r[1] ?? '') ?: 'Benar'; $B = trim($r[2] ?? '') ?: 'Salah';
+            $list = [$A, $B, '', ''];
+            $k = strtoupper(trim($r[3] ?? '')); $penjelasan = trim($r[4] ?? '');
+        }
+        // Kunci boleh berupa huruf (A/B/C/D) atau teks opsi itu sendiri.
+        $letters = ['A', 'B', 'C', 'D'];
+        if (in_array($k, $letters, true)) {
+            if ($k === 'C' && $list[2] === '') { throw new Exception('Kunci C tapi opsi C kosong: "' . mb_substr($q, 0, 40) . '"'); }
+            if ($k === 'D' && $list[3] === '') { throw new Exception('Kunci D tapi opsi D kosong: "' . mb_substr($q, 0, 40) . '"'); }
+        } else {
+            $norm = function (string $s): string { return trim(preg_replace('/\s+/', ' ', mb_strtolower($s))); };
+            $kn = $norm($k); $found = '';
+            foreach ($letters as $i => $L) {
+                $v = $norm($list[$i]);
+                if ($v !== '' && $kn !== '' && $v === $kn) { $found = $L; break; }
+            }
+            if ($found === '') { throw new Exception('Kunci tidak dikenali: "' . mb_substr($q, 0, 40) . '"'); }
+            $k = $found;
+        }
+        $out[] = ['pertanyaan' => $q, 'opsi_a' => $list[0], 'opsi_b' => $list[1], 'opsi_c' => $list[2], 'opsi_d' => $list[3], 'kunci' => $k, 'penjelasan' => $penjelasan];
     }
     if (!$out) { throw new Exception('Tidak ada soal terbaca dari file.'); }
     return $out;
@@ -64,10 +70,10 @@ function mpi_parse_famili100(string $text): array {
 if (isset($_GET['dl']) && $_GET['dl'] === 'template') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="template-soal.csv"');
-    echo "soal;opsiA;opsiB;kunci;penjelasan\n";
-    echo "Berpikir komputasional hanya untuk programmer.;Benar;Salah;B;Berguna untuk semua orang\n";
-    echo "Membagi masalah besar menjadi bagian kecil disebut dekomposisi.;Benar;Salah;A;\n";
-    echo "Resep masakan adalah contoh algoritma.;Benar;Salah;A;\n";
+    echo "soal;opsiA;opsiB;opsiC;opsiD;kunci;penjelasan\n";
+    echo "Manakah langkah berpikir komputasional yang memecah masalah besar jadi bagian kecil?;Abstraksi;Dekomposisi;Algoritma;Pengenalan Pola;B;Dekomposisi = memecah masalah menjadi bagian kecil\n";
+    echo "Serangkaian langkah terstruktur untuk menyelesaikan masalah disebut?;Pola;Abstraksi;Algoritma;Dekomposisi;C;Algoritma adalah urutan langkah yang sistematis\n";
+    echo "Berpikir komputasional hanya diperlukan oleh programmer.;Benar;Salah;;;B;Berguna untuk semua bidang\n";
     exit;
 }
 
@@ -75,6 +81,9 @@ if (isset($_GET['dl']) && $_GET['dl'] === 'template') {
 // Proses aksi (POST)
 // ============================================================
 $tab = $_GET['tab'] ?? 'dashboard';
+// Tab yang dikenal saja. Nilai lama 'ai' (buat soal otomatis) sudah dihapus,
+// jadi otomatis dialihkan ke dashboard, bukan menampilkan halaman kosong.
+if (!in_array($tab, ['dashboard', 'game', 'mapel', 'soal', 'users'], true)) { $tab = 'dashboard'; }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mpi_csrf_check();
     $action = $_POST['action'] ?? '';
@@ -113,11 +122,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mapel_id = (int) ($_POST['mapel_id'] ?? 0);
             $d = ['game_id' => $game_id, 'mapel_id' => ($mapel_id > 0 ? $mapel_id : null), 'pertanyaan' => trim($_POST['pertanyaan'] ?? ''), 'opsi_a' => trim($_POST['opsi_a'] ?? ''), 'opsi_b' => trim($_POST['opsi_b'] ?? ''), 'opsi_c' => trim($_POST['opsi_c'] ?? ''), 'opsi_d' => trim($_POST['opsi_d'] ?? ''), 'kunci' => strtoupper($_POST['kunci'] ?? 'A'), 'penjelasan' => trim($_POST['penjelasan'] ?? ''), 'payload' => null];
             if ($d['pertanyaan'] === '') { throw new Exception('Pertanyaan wajib diisi.'); }
-            if ($gt === 'famili100') { $d['payload'] = json_encode(['jawaban' => mpi_parse_famili100($_POST['famili_jawaban'] ?? '')], JSON_UNESCAPED_UNICODE); $d['opsi_a'] = 'Benar'; $d['opsi_b'] = 'Salah'; $d['kunci'] = 'A'; }
-            elseif ($gt === 'gesture') { $d['payload'] = json_encode(['kategori' => trim($_POST['gest_kategori'] ?? '')], JSON_UNESCAPED_UNICODE); $d['opsi_a'] = 'Benar'; $d['opsi_b'] = 'Salah'; $d['kunci'] = 'A'; }
-            else {
+            // Tipe yang mewajibkan keempat opsi terisi penuh.
+            $PG_STRICT = ['millionaire','clash','racing','mysterybox','xxo','snake'];
+            if ($gt === 'famili100') {
+                $d['payload'] = json_encode(['jawaban' => mpi_parse_famili100($_POST['famili_jawaban'] ?? '')], JSON_UNESCAPED_UNICODE);
+                $d['opsi_a'] = 'Benar'; $d['opsi_b'] = 'Salah'; $d['kunci'] = 'A';
+            } else {
+                if ($gt === 'gesture') { $d['payload'] = json_encode(['kategori' => trim($_POST['gest_kategori'] ?? '')], JSON_UNESCAPED_UNICODE); }
                 if (!in_array($d['kunci'], ['A','B','C','D'], true)) { throw new Exception('Kunci harus A, B, C, atau D.'); }
-                if (in_array($gt, ['millionaire','clash'], true)) { if ($d['opsi_a'] === '' || $d['opsi_b'] === '' || $d['opsi_c'] === '' || $d['opsi_d'] === '') { throw new Exception('Isi keempat opsi A, B, C, dan D.'); } }
+                if (in_array($gt, $PG_STRICT, true)) { if ($d['opsi_a'] === '' || $d['opsi_b'] === '' || $d['opsi_c'] === '' || $d['opsi_d'] === '') { throw new Exception('Isi keempat opsi A, B, C, dan D.'); } }
                 else { $d['opsi_a'] = $d['opsi_a'] !== '' ? $d['opsi_a'] : 'Benar'; $d['opsi_b'] = $d['opsi_b'] !== '' ? $d['opsi_b'] : 'Salah'; }
             }
             if ($id > 0) {
@@ -135,37 +148,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $game_id = (int) $_POST['game_id']; $mapel_id = (int) ($_POST['mapel_id'] ?? 0); $mapel_id = $mapel_id > 0 ? $mapel_id : null;
             if (empty($_FILES['csv']['tmp_name']) || $_FILES['csv']['error'] !== UPLOAD_ERR_OK) { throw new Exception('Gagal mengunggah file CSV.'); }
             $items = mpi_parse_csv_soal((string) file_get_contents($_FILES['csv']['tmp_name']));
-            $st = $db->prepare('INSERT INTO mpi_soal (game_id,mapel_id,pertanyaan,opsi_a,opsi_b,kunci,penjelasan,guru_id) VALUES (?,?,?,?,?,?,?,?)');
-            foreach ($items as $it) { $st->execute([$game_id,$mapel_id,$it['pertanyaan'],$it['opsi_a'],$it['opsi_b'],$it['kunci'],$it['penjelasan'],$user['id']]); }
+            $st = $db->prepare('INSERT INTO mpi_soal (game_id,mapel_id,pertanyaan,opsi_a,opsi_b,opsi_c,opsi_d,kunci,penjelasan,guru_id) VALUES (?,?,?,?,?,?,?,?,?,?)');
+            foreach ($items as $it) { $st->execute([$game_id,$mapel_id,$it['pertanyaan'],$it['opsi_a'],$it['opsi_b'],$it['opsi_c'],$it['opsi_d'],$it['kunci'],$it['penjelasan'],$user['id']]); }
             mpi_flash(count($items) . ' soal berhasil diimpor.');
-        } elseif ($action === 'ai_generate') {
-            $game_id = (int) $_POST['game_id']; $mapel_id = (int) ($_POST['mapel_id'] ?? 0);
-            $topik = trim($_POST['topik'] ?? ''); $jumlah = min(30, max(1, (int) ($_POST['jumlah'] ?? 5)));
-            if ($topik === '') { throw new Exception('Topik wajib diisi.'); }
-            $st = $db->prepare('SELECT * FROM mpi_games WHERE id = ?'); $st->execute([$game_id]); $g = $st->fetch();
-            if (!$g) { throw new Exception('Game tidak ditemukan.'); }
-            if ($g['tipe'] === 'famili100') { throw new Exception('AI untuk Famili 100 belum didukung — isi manual lewat editor Bank Soal.'); }
-            $tipe = $g['tipe']; $isPG = in_array($tipe, ['millionaire','clash'], true);
-            if ($tipe === 'gesture') { $prompt = "Buatkan {$jumlah} kata/istilah untuk game tebak gerakan (charades) dengan topik: \"{$topik}\". Jawab HANYA dengan JSON array, tanpa teks lain. Setiap elemen objek dengan kunci: {\"kata\": string, \"kategori\": string}. Contoh: [{\"kata\":\"Dekomposisi\",\"kategori\":\"Berpikir Komputasional\"}]"; }
-            elseif ($isPG) { $prompt = "Buatkan {$jumlah} soal pilihan ganda 4 opsi (A,B,C,D) untuk game \"{$g['nama']}\" dengan topik: \"{$topik}\". Urutkan dari termudah ke tersulit. Jawab HANYA dengan JSON array, tanpa teks lain. Setiap elemen objek: {\"pertanyaan\":string,\"opsi_a\":string,\"opsi_b\":string,\"opsi_c\":string,\"opsi_d\":string,\"kunci\":\"A\"/\"B\"/\"C\"/\"D\",\"penjelasan\":string}. Contoh: [{\"pertanyaan\":\"...\",\"opsi_a\":\"...\",\"opsi_b\":\"...\",\"opsi_c\":\"...\",\"opsi_d\":\"...\",\"kunci\":\"C\",\"penjelasan\":\"...\"}]"; }
-            else { $prompt = "Buatkan {$jumlah} soal pilihan A/B (misal Benar/Salah) untuk game \"{$g['nama']}\" dengan topik: \"{$topik}\". Jawab HANYA dengan JSON array, tanpa teks lain. Setiap elemen objek: {\"pertanyaan\":string,\"opsi_a\":string,\"opsi_b\":string,\"kunci\":\"A\" atau \"B\",\"penjelasan\":string}. Contoh: [{\"pertanyaan\":\"...\",\"opsi_a\":\"Benar\",\"opsi_b\":\"Salah\",\"kunci\":\"B\",\"penjelasan\":\"...\"}]"; }
-            $text = mpi_gemini($prompt); $arr = mpi_extract_json_array($text); $clean = [];
-            foreach ($arr as $it) {
-                if ($tipe === 'gesture') { $kata = trim($it['kata'] ?? $it['pertanyaan'] ?? ''); if ($kata === '') { continue; } $clean[] = ['pertanyaan'=>$kata,'opsi_a'=>'Benar','opsi_b'=>'Salah','opsi_c'=>'','opsi_d'=>'','kunci'=>'A','penjelasan'=>'','payload'=>json_encode(['kategori'=>trim($it['kategori'] ?? '')], JSON_UNESCAPED_UNICODE)]; }
-                else { if (empty($it['pertanyaan'])) { continue; } $k = strtoupper(trim($it['kunci'] ?? '')); if (!in_array($k, ['A','B','C','D'], true)) { $k = 'A'; } $clean[] = ['pertanyaan'=>trim($it['pertanyaan']),'opsi_a'=>trim($it['opsi_a'] ?? 'Benar') ?: 'Benar','opsi_b'=>trim($it['opsi_b'] ?? 'Salah') ?: 'Salah','opsi_c'=>trim($it['opsi_c'] ?? ''),'opsi_d'=>trim($it['opsi_d'] ?? ''),'kunci'=>$k,'penjelasan'=>trim($it['penjelasan'] ?? ''),'payload'=>null]; }
-            }
-            if (!$clean) { throw new Exception('Tidak ada soal yang berhasil digenerate.'); }
-            $_SESSION['ai_result'] = $clean; $_SESSION['ai_game_id'] = $game_id; $_SESSION['ai_mapel_id'] = ($mapel_id > 0 ? $mapel_id : null);
-            mpi_flash('AI menghasilkan ' . count($clean) . ' soal. Tinjau lalu simpan.'); $redirect = 'admin.php?tab=ai';
-        } elseif ($action === 'ai_save') {
-            $game_id = (int) ($_POST['game_id'] ?? 0); $mapel_id = (int) ($_POST['mapel_id'] ?? 0); $mapel_id = $mapel_id > 0 ? $mapel_id : null;
-            $items = $_SESSION['ai_result'] ?? []; $sel = array_map('intval', (array) ($_POST['save'] ?? []));
-            if (!$items || !$sel) { throw new Exception('Tidak ada soal yang dipilih.'); }
-            $st = $db->prepare('INSERT INTO mpi_soal (game_id,mapel_id,pertanyaan,opsi_a,opsi_b,opsi_c,opsi_d,kunci,penjelasan,payload,guru_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
-            $n = 0;
-            foreach ($sel as $i) { if (!isset($items[$i])) { continue; } $it = $items[$i]; $st->execute([$game_id,$mapel_id,$it['pertanyaan'],$it['opsi_a'],$it['opsi_b'],$it['opsi_c'] ?? '',$it['opsi_d'] ?? '',$it['kunci'],$it['penjelasan'],$it['payload'] ?? null,$user['id']]); $n++; }
-            unset($_SESSION['ai_result'], $_SESSION['ai_game_id'], $_SESSION['ai_mapel_id']);
-            mpi_flash($n . ' soal dari AI disimpan.'); $redirect = 'admin.php?tab=soal';
         } elseif ($action === 'user_save') {
             $id = (int) ($_POST['id'] ?? 0); $username = trim($_POST['username'] ?? ''); $nama = trim($_POST['nama'] ?? ''); $role = ($_POST['role'] ?? 'guru') === 'admin' ? 'admin' : 'guru'; $pass = $_POST['password'] ?? '';
             if ($username === '' || $nama === '') { throw new Exception('Username dan nama wajib diisi.'); }
@@ -212,9 +197,8 @@ if ($soalFilter > 0) {
     $st = $db->prepare($sql); $st->execute($params); $soalList = $st->fetchAll();
 }
 $flash = mpi_take_flash();
-$aiItems = $_SESSION['ai_result'] ?? null; $aiGameId = (int) ($_SESSION['ai_game_id'] ?? 0); $aiMapelId = (int) ($_SESSION['ai_mapel_id'] ?? 0);
 
-$titles = ['dashboard' => 'Dashboard', 'game' => 'Kelola Game', 'mapel' => 'Mata Pelajaran', 'soal' => 'Bank Soal', 'ai' => 'Buat Soal (AI)', 'users' => 'Pengguna'];
+$titles = ['dashboard' => 'Dashboard', 'game' => 'Kelola Game', 'mapel' => 'Mata Pelajaran', 'soal' => 'Bank Soal', 'users' => 'Pengguna'];
 $title = $titles[$tab] ?? 'Dashboard';
 $ini = '';
 foreach (preg_split('/\s+/', trim($user['nama'])) as $w) { if ($w !== '') { $ini .= mb_substr($w, 0, 1); } }
@@ -284,7 +268,6 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
       <?php if ($isAdmin): ?><a href="?tab=game" class="<?= $tab === 'game' ? 'active' : '' ?>">🎮 Game</a><?php endif; ?>
       <a href="?tab=mapel" class="<?= $tab === 'mapel' ? 'active' : '' ?>">📚 Mata Pelajaran</a>
       <a href="?tab=soal" class="<?= $tab === 'soal' ? 'active' : '' ?>">📝 Bank Soal</a>
-      <a href="?tab=ai" class="<?= $tab === 'ai' ? 'active' : '' ?>">🤖 Buat Soal (AI)</a>
       <?php if ($isAdmin): ?><a href="?tab=users" class="<?= $tab === 'users' ? 'active' : '' ?>">👥 Pengguna</a><?php endif; ?>
     </nav>
     <div class="admin-sidefoot">
@@ -331,7 +314,7 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
             <div class="form-row"><label>Deskripsi</label><input name="deskripsi" value="<?= e($editGame['deskripsi'] ?? '') ?>"></div>
             <div class="inline">
               <div class="form-row"><label>File game (relatif ke /game/)</label><input name="file_path" value="<?= e($editGame['file_path'] ?? '') ?>"></div>
-              <div class="form-row"><label>Tipe</label><select name="tipe"><?php foreach (['benar_salah','famili100','clash','gesture','millionaire'] as $t): ?><option value="<?= $t ?>" <?= ($editGame['tipe'] ?? '') === $t ? 'selected' : '' ?>><?= $t ?></option><?php endforeach; ?></select></div>
+              <div class="form-row"><label>Tipe</label><select name="tipe"><?php foreach (['benar_salah','famili100','clash','gesture','millionaire','racing','mysterybox','xxo','snake'] as $t): ?><option value="<?= $t ?>" <?= ($editGame['tipe'] ?? '') === $t ? 'selected' : '' ?>><?= $t ?></option><?php endforeach; ?></select></div>
               <div class="form-row" style="max-width:110px"><label>Urutan</label><input type="number" name="urutan" value="<?= (int) ($editGame['urutan'] ?? 0) ?>"></div>
             </div>
             <div class="inline" style="margin-top:4px">
@@ -394,7 +377,7 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
                 <div class="form-row" style="max-width:130px"><label>Kunci</label><select name="kunci"><option value="A" <?= ($editSoal['kunci'] ?? 'A') === 'A' ? 'selected' : '' ?>>A</option><option value="B" <?= ($editSoal['kunci'] ?? 'A') === 'B' ? 'selected' : '' ?>>B</option></select></div>
               </div>
             </div>
-            <div class="soal-group" data-show="millionaire,clash">
+            <div class="soal-group" data-show="millionaire,clash,gesture,racing,mysterybox,xxo,snake">
               <div class="inline">
                 <div class="form-row"><label>Opsi A</label><input name="opsi_a" value="<?= e($editSoal['opsi_a'] ?? '') ?>"></div>
                 <div class="form-row"><label>Opsi B</label><input name="opsi_b" value="<?= e($editSoal['opsi_b'] ?? '') ?>"></div>
@@ -411,7 +394,7 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
             </div>
             <div class="soal-group" data-show="gesture">
               <div class="form-row"><label>Kategori (misal: Hewan, Aktivitas, Berpikir Komputasional)</label><input name="gest_kategori" value="<?= e($editKategori ?? '') ?>"></div>
-              <p class="muted">Kata yang ditebak diisi di kolom "Pertanyaan / perintah".</p>
+              <p class="muted">Opsional — hanya label kecil di kartu soal Motion Quest AR.</p>
             </div>
 
             <div class="form-row"><label>Penjelasan / catatan (opsional)</label><input name="penjelasan" value="<?= e($editSoal['penjelasan'] ?? '') ?>"></div>
@@ -423,7 +406,7 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
         </div></div>
 
         <div class="dash-card"><div class="head">⬆ Impor Soal dari CSV <a class="btn btn-secondary btn-sm" href="?dl=template">⬇ Unduh Template</a></div><div class="body">
-          <p class="muted">Kolom CSV: <code>soal;opsiA;opsiB;kunci;penjelasan</code> (kunci = A/B). Khusus game A/B.</p>
+          <p class="muted">Kolom CSV: <code>soal;opsiA;opsiB;opsiC;opsiD;kunci;penjelasan</code> (kunci = A/B/C/D, boleh juga ditulis teks opsi yang benar). Format lama <code>soal;opsiA;opsiB;kunci;penjelasan</code> tetap dikenali untuk game A/B. Pemisah bisa <code>;</code> atau <code>,</code>.</p>
           <form method="post" enctype="multipart/form-data">
             <input type="hidden" name="csrf" value="<?= e(mpi_csrf()) ?>"><input type="hidden" name="action" value="soal_upload">
             <div class="inline">
@@ -455,38 +438,6 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
             </div></td>
           </tr><?php endforeach; ?></table>
         </div></div>
-      <?php endif; ?>
-
-      <?php if ($tab === 'ai'): ?>
-        <div class="dash-card"><div class="head">🤖 Buat Soal dengan AI (Google Gemini)</div><div class="body">
-          <?php if (!MPI_GEMINI_KEY): ?><div class="alert err">API key Gemini belum diisi di <code>/var/www/mpi/secrets.php</code> (MPI_GEMINI_KEY).</div><?php endif; ?>
-          <form method="post">
-            <input type="hidden" name="csrf" value="<?= e(mpi_csrf()) ?>"><input type="hidden" name="action" value="ai_generate">
-            <div class="inline">
-              <div class="form-row"><label>Game tujuan</label><select name="game_id"><?php foreach ($games as $g): ?><option value="<?= (int) $g['id'] ?>" <?= $aiGameId === (int) $g['id'] ? 'selected' : '' ?>><?= e($g['nama']) ?></option><?php endforeach; ?></select></div>
-              <div class="form-row"><label>Mata pelajaran</label><select name="mapel_id"><option value="0">— tanpa mapel —</option><?php foreach ($mapel as $m): ?><option value="<?= (int) $m['id'] ?>" <?= $aiMapelId === (int) $m['id'] ? 'selected' : '' ?>><?= e($m['nama']) ?></option><?php endforeach; ?></select></div>
-              <div class="form-row" style="max-width:120px"><label>Jumlah</label><input type="number" name="jumlah" value="5" min="1" max="30"></div>
-            </div>
-            <div class="form-row"><label>Topik / perintah (contoh: "Berpikir komputasional, empat pilar, untuk kelas 9")</label><textarea name="topik" required placeholder="Tulis topik materi di sini..."></textarea></div>
-            <button class="btn-primary">✨ Generate Soal</button>
-          </form>
-        </div></div>
-        <?php if ($aiItems): ?>
-        <div class="dash-card"><div class="head">Hasil Generate (<?= count($aiItems) ?> soal) — pilih lalu simpan</div><div class="body">
-          <form method="post">
-            <input type="hidden" name="csrf" value="<?= e(mpi_csrf()) ?>"><input type="hidden" name="action" value="ai_save"><input type="hidden" name="game_id" value="<?= $aiGameId ?>"><input type="hidden" name="mapel_id" value="<?= $aiMapelId ?>">
-            <table><tr><th>✔</th><th>Pertanyaan</th><th>Opsi</th><th>Kunci</th><th>Penjelasan</th></tr>
-            <?php foreach ($aiItems as $i => $it): ?><tr>
-              <td><input type="checkbox" name="save[]" value="<?= $i ?>" checked></td>
-              <td><?= e($it['pertanyaan']) ?></td>
-              <td><?php $pl = !empty($it['payload']) ? json_decode($it['payload'], true) : null; ?><?php if (is_array($pl) && !empty($pl['kategori'])): ?>Kategori: <?= e($pl['kategori']) ?><?php else: ?>A. <?= e($it['opsi_a']) ?><br>B. <?= e($it['opsi_b']) ?><?php if (!empty($it['opsi_c'])): ?><br>C. <?= e($it['opsi_c']) ?><?php endif; ?><?php if (!empty($it['opsi_d'])): ?><br>D. <?= e($it['opsi_d']) ?><?php endif; ?><?php endif; ?></td>
-              <td><?= (is_array($pl) && !empty($pl['kategori'])) ? '<span class="muted">—</span>' : '<b>' . e($it['kunci']) . '</b>' ?></td>
-              <td class="muted"><?= e($it['penjelasan']) ?></td>
-            </tr><?php endforeach; ?></table>
-            <div class="inline" style="margin-top:14px"><button class="btn-primary">💾 Simpan Soal Terpilih</button><a class="btn btn-secondary" href="?tab=ai">Batal</a></div>
-          </form>
-        </div></div>
-        <?php endif; ?>
       <?php endif; ?>
 
       <?php if ($tab === 'users' && $isAdmin): ?>

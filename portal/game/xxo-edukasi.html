@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>XXO Edukasi — Portal MPI</title>
+<style>
+  /* ---------- VARIASI WARNA GLOBAL (SPEC-GAMES §2) ---------- */
+  :root{
+    --bg:#0b1024; --panel:#121a3a; --line:#2a3a8a; --muted:#94a3b8;
+    --gold:#f5c518; --ok:#22c55e; --bad:#ef4444;
+    --xbiru:#3b82f6; --omerah:#ef4444; --oranye:#f59e0b; --ungu:#a855f7;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--bg); color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select:none; }
+  button { font-family:inherit; cursor:pointer; border:none;border-radius:12px; font-weight:800; }
+  button:disabled { opacity:.35; cursor:default; }
+  .muted { color:var(--muted); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:16px; }
+
+  /* ---------- LAYAR PERSIAPAN ---------- */
+  #setupScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px; overflow:auto; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0b1024 65%); }
+  #setupScreen h1 { margin:0; font-size:clamp(30px,5vw,58px); color:var(--gold); letter-spacing:3px; text-align:center; }
+  #setupSub { margin:0; color:#cbd5e1; font-size:clamp(14px,1.9vw,20px); text-align:center; max-width:900px; }
+  #setupSub .xq { color:#93c5fd; font-weight:900; } #setupSub .oq { color:#fca5a5; font-weight:900; }
+  #infoBadges { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .badge { background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:8px 16px; font-weight:800; font-size:clamp(12px,1.5vw,17px); }
+  #setupBox { display:grid; grid-template-columns:auto 1fr; gap:10px 12px; width:min(600px,94%); padding:18px; }
+  #setupBox label { color:#cbd5e1; font-weight:700; display:flex; align-items:center; justify-content:flex-end; font-size:clamp(13px,1.6vw,17px); }
+  #setupBox input, #setupBox select { padding:10px 12px; border-radius:9px; border:1px solid #334155; background:#0b1220; color:#fff; font-size:16px; width:100%; min-height:44px; }
+  #btnRow { display:flex; gap:14px; align-items:center; flex-wrap:wrap; justify-content:center; }
+  #btnMulai { background:var(--gold); color:#1c1917; font-size:clamp(18px,2.4vw,26px); padding:14px 44px; min-height:44px; }
+  .tombolBantu { background:#1b2a6b; border:2px solid var(--line); color:#fff; font-size:clamp(14px,1.8vw,18px); padding:12px 22px; min-height:44px; }
+
+  /* ---------- LAYAR BERMAIN ---------- */
+  #gameScreen { position:absolute; inset:0; display:flex; flex-direction:column; padding:12px 16px 64px; gap:10px; overflow:hidden; }
+  #hudBar { display:flex; gap:10px; align-items:stretch; }
+  .kartuTim { flex:1; display:flex; flex-direction:column; gap:2px; padding:8px 14px; border-radius:14px; border:2px solid var(--line); background:var(--panel); }
+  .kartuTim.kartuX { border-color:var(--xbiru); background:rgba(59,130,246,.14); }
+  .kartuTim.kartuO { border-color:var(--omerah); background:rgba(239,68,68,.14); }
+  .kartuTim .tnama { font-size:clamp(13px,1.7vw,19px); font-weight:900; letter-spacing:.5px; }
+  .kartuTim.kartuX .tnama { color:#93c5fd; } .kartuTim.kartuO .tnama { color:#fca5a5; }
+  .kartuTim .tpoin { font-size:clamp(24px,3.4vw,42px); font-weight:900; color:var(--gold); line-height:1; }
+  .kartuTim .tmeta { font-size:clamp(12px,1.4vw,16px); font-weight:800; color:#cbd5e1; display:flex; gap:10px; flex-wrap:wrap; }
+  .kartuTim .tnyawa { font-size:clamp(15px,2vw,22px); letter-spacing:2px; }
+  .kartuTim .tnyawa.habis { color:var(--bad); }
+  #statusBox { flex:1.2; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:6px 10px; }
+  #lblMode { font-size:clamp(12px,1.5vw,16px); font-weight:900; color:var(--gold); letter-spacing:1px; }
+  #lblWaktu { font-size:clamp(20px,2.8vw,34px); font-weight:900; font-variant-numeric:tabular-nums; }
+  #lblWaktu.mendesak { color:var(--bad); }
+  #lblFase { font-size:clamp(12px,1.5vw,16px); color:#cbd5e1; font-weight:700; min-height:20px; }
+
+  #playArea { flex:1; display:flex; gap:12px; min-height:0; flex-wrap:wrap; }
+  #boardWrap { position:relative; flex:1.5; min-width:320px; min-height:0; overflow:auto; }
+  #board { display:grid; grid-template-columns:repeat(8,minmax(52px,1fr)); gap:7px; align-content:start; }
+  .kotak { position:relative; background:var(--panel); border:2px solid var(--line); border-radius:10px; min-height:64px; display:flex; align-items:center; justify-content:center; font-size:clamp(22px,2.4vw,38px); font-weight:900; color:#3d4763; padding:0; }
+  .kotak .nomor { position:absolute; top:3px; left:6px; font-size:11px; color:#64748b; font-weight:700; }
+  .kotak .ikonMakanan { position:absolute; top:2px; right:4px; font-size:13px; }
+  .kotak.bisa:hover { border-color:var(--gold); }
+  .kotak.terisi { cursor:default; }
+  .kotak.punyaX { background:rgba(59,130,246,.25); border-color:var(--xbiru); color:#bfdbfe; }
+  .kotak.punyaO { background:rgba(239,68,68,.25); border-color:var(--omerah); color:#fecaca; }
+  .kotak.terpilih { outline:3px solid var(--gold); }
+  .kotak.dalamKombinasi { animation:bersinar 1.2s ease-in-out infinite alternate; }
+  @keyframes bersinar { from { filter:brightness(1); } to { filter:brightness(1.7); } }
+  #lineSvg { position:absolute; left:0; top:0; pointer-events:none; z-index:3; }
+
+  #sidePanel { flex:1; min-width:300px; display:flex; flex-direction:column; gap:10px; min-height:0; overflow:auto; }
+  #actionPanel { padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .judulAksi { font-size:clamp(15px,1.9vw,21px); font-weight:900; color:var(--gold); text-align:center; line-height:1.3; }
+  .barRebut { background:#0b1220; border:1px solid var(--line); height:14px; border-radius:999px; overflow:hidden; }
+  .barRebut i { display:block; height:100%; width:100%; background:var(--gold); transition:width .1s linear; }
+  .barSoal { background:#0b1220; border:1px solid var(--line); height:18px; border-radius:999px; overflow:hidden; }
+  .barSoal i { display:block; height:100%; width:100%; background:var(--ok); transition:width .1s linear; }
+  .barSoal i.mendesak { background:var(--bad); }
+  #rebutBtnRow { display:flex; gap:10px; }
+  .tombolRebut { flex:1; min-height:64px; font-size:clamp(16px,2vw,24px); color:#fff; border-radius:14px; }
+  #rebutX { background:var(--xbiru); } #rebutO { background:var(--omerah); }
+  #rebutCatatan { text-align:center; font-size:clamp(13px,1.6vw,17px); font-weight:800; min-height:22px; color:#cbd5e1; }
+  #btnBukaSoal { background:var(--gold); color:#1c1917; font-size:clamp(16px,2vw,22px); padding:12px; min-height:44px; }
+  .labelTim { text-align:center; font-size:clamp(14px,1.8vw,19px); font-weight:900; padding:8px 10px; border-radius:10px; background:#0b1220; border:1px solid var(--line); }
+  .labelTim.pihakX { color:#93c5fd; border-color:var(--xbiru); } .labelTim.pihakO { color:#fca5a5; border-color:var(--omerah); }
+  #qMeta { font-size:clamp(13px,1.6vw,17px); color:var(--gold); font-weight:900; text-align:center; }
+  #qText { font-size:clamp(16px,2vw,24px); font-weight:800; line-height:1.35; text-align:center; }
+  #optWrap { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .opt { display:flex; align-items:center; gap:10px; background:#0b1220; border:2px solid var(--line); border-radius:12px; padding:10px 12px; color:#fff; font-size:clamp(14px,1.7vw,19px); text-align:left; min-height:52px; }
+  .opt .huruf { background:var(--gold); color:#1c1917; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; flex-shrink:0; }
+  .opt.dipilih { border-color:var(--gold); background:#1b2a6b; box-shadow:0 0 0 2px var(--gold); }
+  #btnKirim { background:var(--gold); color:#1c1917; font-size:clamp(16px,2vw,22px); padding:12px; min-height:44px; }
+  #legend { padding:10px 12px; display:flex; flex-direction:column; gap:6px; font-size:clamp(12px,1.5vw,16px); }
+  .barisLegenda { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip { display:flex; align-items:center; gap:5px; background:#0b1220; border:1px solid var(--line); border-radius:999px; padding:4px 10px; font-weight:700; white-space:nowrap; }
+  .chip.cX { color:#93c5fd; } .chip.cO { color:#fca5a5; } .chip.cK { color:#94a3b8; }
+  .chip.cM { color:#fde68a; } .chip.cB { color:#a7f3d0; } .chip.cMy { color:#d8b4fe; }
+  #timerSoal { text-align:center; font-size:clamp(18px,2.4vw,28px); font-weight:900; color:var(--ok); font-variant-numeric:tabular-nums; }
+  #timerSoal.mendesak { color:var(--bad); animation:denyut .5s ease-in-out infinite alternate; }
+  @keyframes denyut { from { transform:scale(1); } to { transform:scale(1.08); } }
+
+  /* ---------- BILAH GURU (SPEC-GAMES §3) ---------- */
+  #teacherBar { position:absolute; right:12px; bottom:10px; display:flex; gap:8px; z-index:14; }
+  .tbtn { background:#1b2a6b; border:2px solid var(--line); color:#fff; font-size:clamp(13px,1.6vw,17px); padding:9px 14px; min-height:44px; display:flex; align-items:center; text-decoration:none; }
+  #btnSelesai { background:#7f1d1d; border-color:#b91c1c; }
+
+  /* ---------- OVERLAY-OVERLAY ---------- */
+  #pauseOverlay, #countOverlay, #fbOverlay { position:absolute; inset:0; background:rgba(5,8,30,.92); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; padding:30px; z-index:30; }
+  #pauseOverlay { z-index:32; } #fbOverlay { z-index:34; } #countOverlay { z-index:36; }
+  #pauseOverlay h2 { margin:0; font-size:clamp(30px,5vw,60px); color:var(--gold); }
+  .tombolBesar { background:var(--gold); color:#1c1917; font-size:clamp(17px,2.2vw,24px); padding:14px 36px; min-height:44px; }
+  .barisEnd { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; }
+  #countText { font-size:clamp(90px,20vw,220px); font-weight:900; color:var(--gold); text-shadow:0 10px 40px rgba(0,0,0,.6); }
+  #fbCard { max-width:min(820px,94%); padding:26px 30px; border-radius:20px; border:3px solid var(--line); background:var(--panel); display:flex; flex-direction:column; gap:10px; }
+  #fbCard.benar { border-color:var(--ok); box-shadow:0 0 60px rgba(34,197,94,.35); }
+  #fbCard.salah { border-color:var(--bad); box-shadow:0 0 60px rgba(239,68,68,.35); }
+  #fbCard.timeup { border-color:var(--oranye); box-shadow:0 0 60px rgba(245,158,11,.35); }
+  #fbCard.tabrakan { border-color:#f87171; box-shadow:0 0 60px rgba(239,68,68,.45); }
+  #fbEmoji { font-size:clamp(50px,8vw,90px); line-height:1; }
+  #fbTitle { font-size:clamp(26px,4.5vw,54px); font-weight:900; }
+  #fbCard.benar #fbTitle { color:var(--ok); } #fbCard.salah #fbTitle { color:var(--bad); }
+  #fbCard.timeup #fbTitle { color:var(--oranye); } #fbCard.tabrakan #fbTitle { color:#fca5a5; }
+  #fbLines { font-size:clamp(15px,2.1vw,23px); color:#e2e8f0; font-weight:700; line-height:1.55; display:flex; flex-direction:column; gap:6px; }
+  #fbLines .emas { color:var(--gold); }
+  #comboBanner { position:absolute; left:50%; top:14%; transform:translateX(-50%); background:linear-gradient(90deg,#7c3aed,#f5c518); color:#1c1917; font-size:clamp(18px,2.8vw,30px); font-weight:900; padding:12px 26px; border-radius:16px; z-index:26; box-shadow:0 10px 40px rgba(0,0,0,.5); }
+
+  /* ---------- PANEL CARA BERMAIN ---------- */
+  #helpPanel { position:absolute; inset:0; background:rgba(5,8,30,.9); z-index:40; display:flex; align-items:center; justify-content:center; padding:18px; }
+  #helpKonten { width:min(860px,100%); max-height:100%; overflow:auto; background:#0f1630; border:2px solid var(--line); border-radius:18px; padding:22px 26px; }
+  #helpKonten h2 { margin:0 0 10px; color:var(--gold); font-size:clamp(20px,3vw,32px); }
+  #helpKonten h3 { margin:16px 0 6px; color:var(--gold); font-size:clamp(15px,2vw,20px); }
+  #helpKonten ol, #helpKonten ul { margin:6px 0; padding-left:24px; }
+  #helpKonten li { margin:6px 0; font-size:clamp(13px,1.6vw,16px); line-height:1.5; color:#dbe3f4; }
+  #helpKonten table { border-collapse:collapse; width:100%; margin:8px 0; font-size:clamp(12px,1.5vw,15px); }
+  #helpKonten th, #helpKonten td { border:1px solid var(--line); padding:6px 10px; text-align:left; }
+  #helpKonten th { background:#1b2a6b; color:var(--gold); }
+  #btnCloseHelp { margin-top:14px; background:var(--gold); color:#1c1917; font-size:17px; padding:12px 30px; min-height:44px; }
+
+  /* ---------- LAYAR HASIL ---------- */
+  #endScreen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px; overflow:auto; background:radial-gradient(circle at 50% 20%,#1b2a6b,#0b1024 65%); }
+  #endTrophy { font-size:clamp(60px,8vw,90px); }
+  #endTitle { margin:0; font-size:clamp(24px,4vw,44px); color:var(--gold); }
+  #endReason { color:#cbd5e1; font-size:clamp(14px,1.9vw,19px); font-weight:700; text-align:center; }
+  #winnerBox { font-size:clamp(20px,3.4vw,40px); font-weight:900; text-align:center; }
+  #endBoard { width:min(760px,94%); display:flex; flex-direction:column; gap:8px; }
+  .barisHasil { display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 18px; font-size:clamp(15px,2vw,21px); flex-wrap:wrap; }
+  .barisHasil b { color:var(--gold); font-size:clamp(18px,2.6vw,26px); }
+  #awardRow { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:min(860px,94%); }
+  .award { background:#1e1b4b; border:2px solid var(--ungu); border-radius:14px; padding:8px 14px; font-size:clamp(13px,1.6vw,17px); font-weight:800; color:#e9d5ff; }
+  .award b { color:var(--gold); }
+  #btnCsv { background:var(--ok); color:#052e16; font-size:clamp(14px,1.8vw,18px); padding:12px 22px; min-height:44px; }
+  #btnAgain { background:var(--gold); color:#1c1917; font-size:clamp(16px,2.2vw,22px); padding:13px 30px; min-height:44px; }
+  #endHome { color:#a5b4fc; font-size:16px; }
+  #kS { padding:9px 12px; border-radius:9px; border:1px solid #334155; background:#0b1220; color:#fff; font-size:15px; min-height:44px; }
+  #btnKS { background:#1b2a6b; border:2px solid var(--line); color:#fff; font-size:15px; padding:10px 18px; min-height:44px; }
+  #tipsGuru { width:min(760px,94%); background:var(--panel); border:1px dashed var(--line); border-radius:14px; padding:14px 20px; }
+  #tipsGuru h3 { margin:0 0 6px; color:var(--gold); font-size:17px; }
+  #tipsGuru li { font-size:clamp(13px,1.6vw,16px); line-height:1.55; color:#dbe3f4; margin:4px 0; }
+</style>
+</head>
+<body>
+
+<!-- ================= LAYAR 1: PERSIAPAN ================= -->
+<div id="setupScreen">
+  <h1>⭕❌ XXO EDUKASI</h1>
+  <p id="setupSub"><span class="xq">Tim X (biru)</span> vs <span class="oq">Tim O (merah)</span> — Simulasi Permainan di Kelas: Rebut Kotak, Jawab Soal, dan Susun Strategi!</p>
+  <div id="infoBadges">
+    <span class="badge">👥 2–8 Kelompok</span>
+    <span class="badge">📦 40 Kotak</span>
+    <span class="badge">⏱ 10 Detik Menjawab</span>
+    <span class="badge">⭕ 3 Kotak Berurutan</span>
+  </div>
+  <div id="setupBox" class="panel">
+    <label for="namaX">✕ Nama Tim X (biru)</label><input id="namaX" value="Tim X" maxlength="24" />
+    <label for="namaO">◯ Nama Tim O (merah)</label><input id="namaO" value="Tim O" maxlength="24" />
+    <label for="selMode">Mode permainan</label>
+    <select id="selMode">
+      <option value="waktu" selected>⏱ MODE WAKTU (sesuai durasi guru)</option>
+      <option value="jumlah">📋 MODE JUMLAH SOAL (berhenti setelah kuota)</option>
+      <option value="last">❤️ LAST XXO STANDING (habiskan nyawa lawan)</option>
+    </select>
+    <label for="inDurasi">Durasi (menit) ⏱</label><input id="inDurasi" type="number" value="10" min="1" max="60" />
+    <label for="selJumlah">Jumlah soal 📋</label>
+    <select id="selJumlah">
+      <option value="10">10 soal</option><option value="20" selected>20 soal</option>
+      <option value="30">30 soal</option><option value="40">40 soal</option>
+    </select>
+    <label for="selWaktuJwb">Waktu menjawab</label>
+    <select id="selWaktuJwb">
+      <option value="10" selected>10 detik</option><option value="15">15 detik</option>
+      <option value="20">20 detik</option><option value="30">30 detik</option>
+    </select>
+  </div>
+  <div id="btnRow">
+    <button id="btnMulai">▶ MULAI</button>
+    <button id="btnHelpSetup" class="tombolBantu">📖 Cara Bermain</button>
+  </div>
+  <div class="muted" id="srcName">Memuat soal...</div>
+</div>
+
+<!-- ================= LAYAR 2: BERMAIN ================= -->
+<div id="gameScreen" hidden>
+  <div id="hudBar">
+    <div class="kartuTim kartuX" id="hudX">
+      <span class="tnama" id="namaHudX">✕ Tim X</span>
+      <span class="tpoin" id="poinHudX">0</span>
+      <span class="tnyawa" id="nyawaHudX">❤️❤️❤️</span>
+      <span class="tmeta" id="metaHudX">🧩 0 kombinasi</span>
+    </div>
+    <div id="statusBox" class="panel">
+      <div id="lblMode">⏱ MODE WAKTU</div>
+      <div id="lblWaktu">10:00</div>
+      <div id="lblFase">Bersiap...</div>
+    </div>
+    <div class="kartuTim kartuO" id="hudO">
+      <span class="tnama" id="namaHudO">◯ Tim O</span>
+      <span class="tpoin" id="poinHudO">0</span>
+      <span class="tnyawa" id="nyawaHudO">❤️❤️❤️</span>
+      <span class="tmeta" id="metaHudO">🧩 0 kombinasi</span>
+    </div>
+  </div>
+
+  <div id="playArea">
+    <div id="boardWrap">
+      <div id="board"></div>
+      <svg id="lineSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="sidePanel">
+      <div id="actionPanel" class="panel">
+        <!-- View: menunggu pemilihan kotak -->
+        <div id="viewPilih">
+          <div class="judulAksi">👉 Ayo berebut! Klik salah satu<br />kotak KOSONG di papan (01–40)</div>
+        </div>
+        <!-- View: rebutan kepemilikan kotak -->
+        <div id="viewRebut" hidden>
+          <div class="judulAksi" id="rebutJudul">REBUT KOTAK</div>
+          <div class="barRebut"><i id="rebutBar"></i></div>
+          <div id="rebutBtnRow">
+            <button id="rebutX" class="tombolRebut">✕ REBUT!</button>
+            <button id="rebutO" class="tombolRebut">◯ REBUT!</button>
+          </div>
+          <div id="rebutCatatan">Tim mana yang paling cepat menekan?</div>
+          <button id="btnBukaSoal" hidden>📂 BUKA SOAL</button>
+        </div>
+        <!-- View: soal & jawaban -->
+        <div id="viewSoal" hidden>
+          <div class="labelTim" id="penandaTim">✕ Tim X menjawab</div>
+          <div id="qMeta">Kotak 01 · Informatika</div>
+          <div id="qText">Soal...</div>
+          <div id="optWrap">
+            <button class="opt" id="opt0"><span class="huruf">A</span><span class="otxt"></span></button>
+            <button class="opt" id="opt1"><span class="huruf">B</span><span class="otxt"></span></button>
+            <button class="opt" id="opt2"><span class="huruf">C</span><span class="otxt"></span></button>
+            <button class="opt" id="opt3"><span class="huruf">D</span><span class="otxt"></span></button>
+          </div>
+          <div id="timerSoal">⏱ 10 Detik</div>
+          <div class="barSoal"><i id="barSoalIsi"></i></div>
+          <button id="btnKirim" disabled>📨 KIRIM JAWABAN</button>
+        </div>
+      </div>
+      <div id="legend" class="panel">
+        <div class="barisLegenda">
+          <span class="chip cX">✕ Tim X (biru)</span>
+          <span class="chip cO">◯ Tim O (merah)</span>
+          <span class="chip cK">▢ Kosong (abu)</span>
+        </div>
+        <div class="barisLegenda">
+          <span class="chip cM">🍎 +100</span><span class="chip cM">⭐ +200</span><span class="chip cM">💎 +500</span>
+          <span class="chip cM">⚡ Speed</span><span class="chip cM">🛡️ Shield</span><span class="chip cM">❓ Mystery</span>
+        </div>
+        <div class="barisLegenda">
+          <span class="chip cB">⭕ 3 kotak berurutan = +100</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="teacherBar">
+    <button id="btnPause" class="tbtn">⏸ Jeda</button>
+    <button id="btnSelesai" class="tbtn">🏁 Selesai</button>
+    <a id="btnHomeG" class="tbtn" href="index.php">🏠</a>
+    <button id="btnHelpGame" class="tbtn">📖</button>
+  </div>
+
+  <div id="comboBanner" hidden></div>
+
+  <!-- Overlay jeda -->
+  <div id="pauseOverlay" hidden>
+    <h2>⏸ JEDA</h2>
+    <p class="muted">Semua timer dihentikan. Lanjutkan saat kelas siap.</p>
+    <button id="btnResume" class="tombolBesar">▶ Lanjutkan</button>
+    <button id="btnSelesai2" class="tombolBantu">🏁 Akhiri Sekarang</button>
+  </div>
+
+  <!-- Overlay countdown 3-2-1-GO -->
+  <div id="countOverlay" hidden>
+    <div id="countText">3</div>
+  </div>
+
+  <!-- Overlay koreksi / tabrakan -->
+  <div id="fbOverlay" hidden>
+    <div id="fbCard">
+      <div id="fbEmoji">✅</div>
+      <div id="fbTitle">BENAR!</div>
+      <div id="fbLines"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= LAYAR 3: HASIL ================= -->
+<div id="endScreen" hidden>
+  <div id="endTrophy">🏆</div>
+  <h2 id="endTitle">HASIL AKHIR</h2>
+  <div id="endReason"></div>
+  <div id="winnerBox"></div>
+  <div id="endBoard"></div>
+  <div id="awardRow"></div>
+  <div class="barisEnd">
+    <select id="kS">
+      <option value="0">Tim X</option>
+      <option value="1">Tim O</option>
+    </select>
+    <button id="btnKS">🤝 Tetapkan Kerja Sama</button>
+    <button id="btnCsv">⬇ UNDUH HASIL BALAP</button>
+  </div>
+  <div class="barisEnd">
+    <button id="btnAgain">🔁 Main Lagi</button>
+    <a id="endHome" href="index.php">🏠 Kembali ke Beranda</a>
+  </div>
+  <div id="tipsGuru">
+    <h3>📌 Tips untuk Guru</h3>
+    <ul>
+      <li>Beri waktu latihan menekan tombol rebutan agar siswa terbiasa sebelum lomba sungguhan.</li>
+      <li>Lakukan rotasi perwakilan tim supaya semua anggota ikut berkontribusi.</li>
+      <li>Hentikan permainan lewat ⏸ Jeda untuk menjelaskan konsep yang dianggap sulit.</li>
+      <li>Ajak siswa merefleksikan strategi: kotak mana yang paling berharga dan mengapa.</li>
+      <li>Bahas kerja sama tim: siapa paling cepat berebut, siapa paling tenang menjawab soal.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================= PANEL CARA BERMAIN ================= -->
+<div id="helpPanel" hidden>
+  <div id="helpKonten">
+    <h2>📖 Cara Bermain — XXO EDUKASI</h2>
+    <ol>
+      <li><b>Persiapan:</b> guru mengisi nama Tim X (biru) & Tim O (merah), memilih mode, durasi/jumlah soal, lalu menekan ▶ MULAI.</li>
+      <li><b>Papan XXO:</b> 40 kotak tersusun <b>5 baris × 8 kolom</b> bernomor <b>01–40</b>. Hanya kotak kosong (abu) yang bisa dipilih; kotak terisi terkunci.</li>
+      <li><b>Mode permainan:</b> ⏱ MODE WAKTU (berlomba sampai durasi habis) · 📋 MODE JUMLAH SOAL (berhenti setelah kuota soal) · ❤️ LAST XXO STANDING (terakhir bertahan, nyawa habis = GAME OVER).</li>
+      <li><b>Alur main:</b> kedua tim berebut menekan kotak → tim yang paling cepat merebut kotak mendapat soal → jawab dalam batas waktu (default 10 detik) → KIRIM JAWABAN → benar = kotak dikuasai, salah = kotak tetap kosong dan bisa direbut tim lain.</li>
+      <li><b>Pertanyaan:</b> panel menampilkan nomor kotak, mata pelajaran, 4 opsi A–D, timer (merah bila ≤3 detik), penanda tim penjawab, dan tombol KIRIM JAWABAN.</li>
+      <li><b>Kombinasi XXO:</b> 3 kotak berurutan milik satu tim (horizontal / vertikal / diagonal) → 🎉 <b>+100 poin</b> + garis kombinasi disorot. Satu kotak boleh ikut banyak kombinasi, tetapi kombinasi yang sama tidak dihitung dua kali.</li>
+      <li><b>Makanan & power-up acak:</b> 🍎 +100 poin · ⭐ +200 poin · 💎 +500 poin · ⚡ Speed (soal berikutnya dijawab 10 detik lebih cepat, poin 2×) · 🛡️ Shield (membatalkan 1 tabrakan) · ❓ Mystery (hadiah acak).</li>
+      <li><b>Tabrakan & nyawa (mode LAST XXO STANDING):</b> mulai dengan ❤️❤️❤️. Lihat tabel konsekuensi di bawah. Shield membatalkan 1 tabrakan. Nyawa 0 → 💀 GAME OVER.</li>
+      <li><b>Poin:</b> menjawab benar = +50 (dasar) dan kotak menjadi milik tim; kombinasi = +100; kotak makanan/power-up = sesuai nilainya; menjawab salah = tidak dapat poin.</li>
+      <li><b>Penentuan pemenang:</b> permainan berakhir bila semua kotak terkuasai, waktu habis, kuota soal tercapai, atau satu kelompok kehilangan seluruh nyawa. <b>Pemenang = kelompok dengan total poin tertinggi.</b></li>
+      <li><b>Tips guru:</b> gunakan latihan tombol, rotasi perwakilan, jeda untuk penjelasan, dan refleksi strategi setelah permainan.</li>
+    </ol>
+    <h3>💥 Tabel Konsekuensi Tabrakan</h3>
+    <table>
+      <tr><th>Jenis Tabrakan</th><th>Pemicu dalam simulasi</th><th>Konsekuensi</th></tr>
+      <tr><td>🧱 Dinding</td><td>3 jawaban salah beruntun oleh satu tim</td><td>−1 nyawa & −100 poin</td></tr>
+      <tr><td>🚶 Tubuh sendiri</td><td>Waktu menjawab habis (tidak ada jawaban)</td><td>−1 nyawa & −100 poin</td></tr>
+      <tr><td>💥 Kepala vs kepala</td><td>Kedua tim merebut kotak yang sama nyaris bersamaan (jeda tekan ≤ 0,8 detik)</td><td>Keduanya −1 nyawa, kotak batal</td></tr>
+      <tr><td>🚢 Tubuh lawan</td><td>Tim lawan menekan rebutan setelah kotak resmi direbut</td><td>−1 nyawa bagi penabrak, hak jawab tetap</td></tr>
+    </table>
+    <p class="muted">Catatan: pada mode WAKTU dan JUMLAH SOAL, tabrakan dan nyawa tidak berlaku — papan tetap seru tanpa eliminasi.</p>
+    <button id="btnCloseHelp">✔ Tutup</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- BAGIAN: KONSTANTA PERMAINAN ----------
+  const BARIS = 5, KOLOM = 8, TOTAL_KOTAK = 40;   // papan 5 baris × 8 kolom = 40 kotak
+  const POIN_BENAR = 50;        // poin dasar menjawab benar
+  const POIN_KOMBINASI = 100;   // bonus kombinasi 3 kotak
+  const NYAWA_AWAL = 3;         // ❤️❤️❤️
+  const DENDA_TABRAKAN = 100;   // −100 poin untuk tabrakan dinding / tubuh sendiri
+  const REBUT_MS = 5000;        // jendela waktu rebutan kotak
+  const KEJAR_MS = 800;         // ambang "nyaris bersamaan" => kepala vs kepala
+  const KOREKSI_MS = 1600;      // durasi overlay koreksi ±1,6 detik
+
+  // Daftar 90 garis "3 berurutan": horizontal, vertikal, dua diagonal.
+  const GARIS = [];
+  (function bangunGaris() {
+    let r, c;
+    for (r = 0; r < BARIS; r++) { for (c = 0; c <= KOLOM - 3; c++) { GARIS.push([r * KOLOM + c, r * KOLOM + c + 1, r * KOLOM + c + 2]); } }
+    for (c = 0; c < KOLOM; c++) { for (r = 0; r <= BARIS - 3; r++) { GARIS.push([r * KOLOM + c, (r + 1) * KOLOM + c, (r + 2) * KOLOM + c]); } }
+    for (r = 0; r <= BARIS - 3; r++) { for (c = 0; c <= KOLOM - 3; c++) { GARIS.push([r * KOLOM + c, (r + 1) * KOLOM + c + 1, (r + 2) * KOLOM + c + 2]); } }
+    for (r = 0; r <= BARIS - 3; r++) { for (c = 2; c < KOLOM; c++) { GARIS.push([r * KOLOM + c, (r + 1) * KOLOM + c - 1, (r + 2) * KOLOM + c - 2]); } }
+  })();
+
+  // ---------- BAGIAN: BANK SOAL FALLBACK (≥12, tema Informatika / Matematika SMP) ----------
+  const FALLBACK = [
+    { t: 'Informatika', q: 'Empat pilar berpikir komputasional adalah…', o: ['Dekomposisi, pengenalan pola, abstraksi, algoritma', 'Input, proses, output, penyimpanan', 'Hardware, software, data, pengguna', 'Membaca, menulis, menghitung, menggambar'], k: 'A', x: 'Empat pilar tersebut menjadi fondasi berpikir komputasional.' },
+    { t: 'Informatika', q: 'Memecah masalah besar menjadi bagian-bagian kecil yang mudah dikelola disebut…', o: ['Abstraksi', 'Dekomposisi', 'Algoritma', 'Iterasi'], k: 'B', x: 'Dekomposisi = membagi masalah kompleks menjadi sub-masalah kecil.' },
+    { t: 'Informatika', q: 'Mengabaikan informasi yang tidak penting dan fokus pada inti masalah disebut…', o: ['Pengenalan pola', 'Dekomposisi', 'Abstraksi', 'Debugging'], k: 'C', x: 'Abstraksi menyaring detail yang tidak diperlukan.' },
+    { t: 'Informatika', q: 'Sistem bilangan yang dipakai komputer untuk merepresentasikan data adalah…', o: ['Desimal', 'Oktal', 'Biner', 'Heksadesimal'], k: 'C', x: 'Komputer memakai kombinasi angka 0 dan 1 (biner).' },
+    { t: 'Matematika', q: 'Hasil dari 1010 (biner) jika diubah ke desimal adalah…', o: ['8', '10', '12', '20'], k: 'B', x: '1010 biner = 1×8 + 0×4 + 1×2 + 0×1 = 10.' },
+    { t: 'Informatika', q: 'Berikut yang BUKAN ciri algoritma yang baik adalah…', o: ['Urut dan jelas', 'Tidak ambigu', 'Pasti berhenti', 'Boleh berputar tanpa akhir'], k: 'D', x: 'Algoritma harus berhenti setelah langkah terakhir (finiteness).' },
+    { t: 'Informatika', q: 'Perangkat keras yang berfungsi mencetak dokumen keluar adalah…', o: ['Scanner', 'Printer', 'Keyboard', 'Webcam'], k: 'B', x: 'Printer adalah perangkat keluaran (output).' },
+    { t: 'Informatika', q: 'Gabungan tombol keyboard untuk menyimpan dokumen adalah…', o: ['Ctrl+C', 'Ctrl+V', 'Ctrl+S', 'Ctrl+Z'], k: 'C', x: 'Ctrl+S memanggil perintah Save.' },
+    { t: 'Matematika', q: 'Hasil dari (−7) + 12 adalah…', o: ['−5', '5', '−19', '19'], k: 'B', x: 'Bilangan berbeda tanda: kurangi nilai mutlak, tanda mengikuti yang lebih besar.' },
+    { t: 'Matematika', q: 'KPK dari 12 dan 18 adalah…', o: ['6', '24', '36', '72'], k: 'C', x: '12 = 2²×3, 18 = 2×3²; KPK = 2²×3² = 36.' },
+    { t: 'Matematika', q: 'FPB dari 24 dan 36 adalah…', o: ['6', '12', '18', '24'], k: 'B', x: '24 = 2³×3, 36 = 2²×3²; FPB = 2²×3 = 12.' },
+    { t: 'Matematika', q: '25% dari 240 adalah…', o: ['40', '50', '60', '80'], k: 'C', x: '240 × 25 : 100 = 60.' },
+    { t: 'Matematika', q: 'Luas persegi panjang berukuran 8 cm × 5 cm adalah…', o: ['13 cm²', '26 cm²', '40 cm²', '45 cm²'], k: 'C', x: 'Luas = panjang × lebar = 8 × 5 = 40 cm².' },
+    { t: 'Matematika', q: 'Suku berikutnya dari barisan 2, 4, 8, 16, … adalah…', o: ['20', '24', '30', '32'], k: 'D', x: 'Setiap suku dikali 2, jadi 16 × 2 = 32 (pengenalan pola).' },
+    { t: 'Matematika', q: 'Hasil akar kuadrat dari 144 adalah…', o: ['10', '11', '12', '14'], k: 'C', x: '12 × 12 = 144.' },
+    { t: 'Informatika', q: 'Dari perangkat berikut, yang termasuk perangkat masukan (input) adalah…', o: ['Monitor', 'Speaker', 'Printer', 'Mouse'], k: 'D', x: 'Mouse memasukkan data ke komputer; tiga lainnya keluaran.' }
+  ];
+
+  // ---------- BAGIAN: UTILITAS ----------
+  const $ = (id) => document.getElementById(id);
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function nomorKotak(i) { return (i + 1 < 10 ? '0' : '') + (i + 1); }
+  function acakUrutan(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function angkaAcak(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
+  function formatDetik(ms) {
+    const tot = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(tot / 60), s = tot % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  const params = new URLSearchParams(location.search);
+  const gameSlug = params.get('game') || '';
+
+  function setSrc(teks) { $('srcName').textContent = teks; }
+
+  // Normalisasi pilihan ganda dari API (buang duplikat, pastikan kunci ada di opsi).
+  function normPG(s) {
+    const raw = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d].map((v) => String(v || '').trim());
+    const opts = [];
+    raw.forEach((v) => { if (v && opts.indexOf(v) === -1) { opts.push(v); } });
+    if (opts.length < 2) { return null; }
+    const huruf = String(s.kunci || 'A').trim().toUpperCase().charAt(0);
+    let idx = 'ABCD'.indexOf(huruf);
+    if (idx < 0) { idx = 0; }
+    const teksKunci = raw[idx];
+    if (!teksKunci || opts.indexOf(teksKunci) === -1) { return null; } // kunci tidak valid -> buang soal
+    return { q: String(s.pertanyaan || '').trim(), opts: opts, ansIdx: opts.indexOf(teksKunci), explain: String(s.penjelasan || '').trim() };
+  }
+
+  function topikDariSoal(s) {
+    if (s.mapel) { return String(s.mapel); }
+    let p = s.payload;
+    if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { p = null; } }
+    if (p && typeof p === 'object' && p.topik) { return String(p.topik); }
+    return 'Informatika';
+  }
+
+  async function loadQuestions() {
+    if (!gameSlug) { setSrc('Soal bawaan (' + bankSoal.length + ')'); return; }
+    try {
+      const res = await fetch('/api/questions.php?game=' + encodeURIComponent(gameSlug), { cache: 'no-store' });
+      if (!res.ok) { throw new Error('HTTP ' + res.status); }
+      const data = await res.json();
+      if (data.error) { throw new Error(data.error); }
+      const daftar = [];
+      (data.soal || []).forEach((s) => {
+        const n = normPG(s);
+        if (n && n.q) { n.topic = topikDariSoal(s); daftar.push(n); }
+      });
+      if (daftar.length) {
+        bankSoal = daftar;
+        antreanSoal = []; // antrean lama memakai indeks bank lama -> kosongkan
+        setSrc(((data.game && data.game.nama) || gameSlug) + ' · ' + daftar.length + ' soal');
+      } else {
+        setSrc('⚠️ Soal bawaan (' + bankSoal.length + ') — API kosong');
+      }
+    } catch (e) {
+      setSrc('⚠️ Soal bawaan (' + bankSoal.length + ') — API tak tersedia');
+    }
+  }
+
+  // ---------- BAGIAN: STATE PERMAINAN ----------
+  let bankSoal = FALLBACK.map((f) => ({ q: f.q, opts: f.o.slice(), ansIdx: 'ABCD'.indexOf(f.k), explain: f.x || '', topic: f.t }));
+  let antreanSoal = [];           // indeks bank yang akan dipakai (daur ulang bila habis)
+  let tim = [];                   // [0] = Tim X biru, [1] = Tim O merah
+  let mode = 'waktu';             // 'waktu' | 'jumlah' | 'last'
+  let waktuJwbMs = 10000;         // durasi menjawab dasar (10/15/20/30 detik)
+  let durasiBalapanMs = 600000;   // untuk MODE WAKTU
+  let kuotaSoal = 20;             // untuk MODE JUMLAH SOAL
+  let fase = 'diam';              // 'diam' | 'hitung' | 'pilih' | 'rebut' | 'soal' | 'koreksi' | 'selesai'
+  let jeda = false;
+  let sisaRebutMs = 0, sisaJawabMs = 0, jendelaJawabMs = 10000, sisaKoreksiMs = 0, sisaHitungMs = 0;
+  let sisaBalapanMs = 0;
+  let totalSoalDiminta = 0, kotakTerisi = 0;
+  let kotakTerpilih = -1, kotakAktif = -1;
+  let perekor = null;             // { timIdx, sisaSaatItu } — tim pertama yang merebut
+  let sudahDitantang = false;
+  let pilihanTerpilih = -1, terkirim = false;
+  let soalAktif = null, timPenjawab = -1;
+  let kecepatanAktif = false; // efek power-up ⚡ Speed aktif di soal ini
+  let akhirTertunda = '', koTim = -1;
+  let pemilikKotak = new Array(TOTAL_KOTAK).fill(-1);
+  let isiKotak = new Array(TOTAL_KOTAK).fill(null);   // makanan/power-up per kotak
+  let kombinasiTerbayar = new Set();                   // tanda tangan garis yang sudah diberi poin
+  let daftarGarisKombinasi = [];                       // untuk menggambar ulang saat resize
+  let kotakDalamKombinasi = new Set();
+  let peraihKerjaSama = 0;
+  let lastTime = 0, rafAktif = false;
+
+  const WARNA_TIM = ['#3b82f6', '#ef4444'];
+  const SIMBOL_TIM = ['✕', '◯'];
+
+  function namaTim(i) { return tim[i] ? tim[i].nama : (i === 0 ? 'Tim X' : 'Tim O'); }
+
+  // ---------- BAGIAN: PEMBENTUKAN PAPAN ----------
+  function bangunPapan() {
+    const b = $('board');
+    b.innerHTML = '';
+    for (let i = 0; i < TOTAL_KOTAK; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'kotak';
+      btn.id = 'kotak' + i;
+      btn.innerHTML = '<span class="nomor">' + nomorKotak(i) + '</span><span class="isi">▢</span><span class="ikonMakanan"></span>';
+      btn.addEventListener('click', () => klikKotak(i));
+      b.appendChild(btn);
+    }
+  }
+
+  function gambarSeluruhPapan() {
+    for (let i = 0; i < TOTAL_KOTAK; i++) {
+      const el = $('kotak' + i);
+      const pm = pemilikKotak[i];
+      el.className = 'kotak' + (pm === -1 ? ' bisa' : ' terisi ' + (pm === 0 ? 'punyaX' : 'punyaO')) + (kotakTerpilih === i && pm === -1 ? ' terpilih' : '') + (kotakDalamKombinasi.has(i) ? ' dalamKombinasi' : '');
+      el.querySelector('.isi').textContent = pm === -1 ? '▢' : SIMBOL_TIM[pm];
+      const ikon = el.querySelector('.ikonMakanan');
+      ikon.textContent = (pm === -1 && isiKotak[i]) ? ICON_MAKANAN[isiKotak[i]] : '';
+    }
+  }
+
+  const ICON_MAKANAN = { 'apel': '🍎', 'bintang': '⭐', 'berlian': '💎', 'speed': '⚡', 'shield': '🛡️', 'mystery': '❓' };
+
+  function sebarMakanan() {
+    isiKotak = new Array(TOTAL_KOTAK).fill(null);
+    const jenisSebar = ['apel', 'apel', 'apel', 'apel', 'bintang', 'bintang', 'bintang', 'berlian', 'berlian', 'speed', 'shield', 'mystery'];
+    const posisi = acakUrutan(Array.from({ length: TOTAL_KOTAK }, (_, i) => i)).slice(0, jenisSebar.length);
+    posisi.forEach((idx, i) => { isiKotak[idx] = jenisSebar[i]; });
+  }
+
+  // ---------- BAGIAN: PEMILIHAN SOAL (daur ulang + acak opsi) ----------
+  function pilihSoal() {
+    if (!antreanSoal.length) { antreanSoal = acakUrutan(bankSoal.map((_, i) => i)); }
+    const sumber = bankSoal[antreanSoal.pop()];
+    // Acak urutan opsi agar posisi kunci tidak selalu sama saat soal didaur ulang.
+    const opts = acakUrutan(sumber.opts);
+    const teksJawaban = sumber.opts[sumber.ansIdx];
+    return { q: sumber.q, opts: opts, ansIdx: opts.indexOf(teksJawaban), explain: sumber.explain, topic: sumber.topic };
+  }
+
+  // ---------- BAGIAN: ALUR — MULAI PERMAINAN ----------
+  function mulaiPermainan() {
+    mode = $('selMode').value;
+    waktuJwbMs = parseInt($('selWaktuJwb').value, 10) * 1000 || 10000;
+    durasiBalapanMs = Math.max(1, parseInt($('inDurasi').value, 10) || 10) * 60000;
+    kuotaSoal = parseInt($('selJumlah').value, 10) || 20;
+    const namaX = $('namaX').value.trim() || 'Tim X';
+    const namaO = $('namaO').value.trim() || 'Tim O';
+    tim = [
+      { nama: namaX, poin: 0, nyawa: NYAWA_AWAL, shield: 0, speedNext: false, benar: 0, salah: 0, deretSalah: 0, kombinasi: 0, kotak: 0, waktuBenar: [], tercepat: 0 },
+      { nama: namaO, poin: 0, nyawa: NYAWA_AWAL, shield: 0, speedNext: false, benar: 0, salah: 0, deretSalah: 0, kombinasi: 0, kotak: 0, waktuBenar: [], tercepat: 0 }
+    ];
+    sisaBalapanMs = durasiBalapanMs;
+    pemilikKotak = new Array(TOTAL_KOTAK).fill(-1);
+    kombinasiTerbayar = new Set();
+    daftarGarisKombinasi = [];
+    kotakDalamKombinasi = new Set();
+    totalSoalDiminta = 0; kotakTerisi = 0; koTim = -1; akhirTertunda = '';
+    perekor = null; sudahDitantang = false; kotakTerpilih = -1; kotakAktif = -1;
+    kecepatanAktif = false; antreanSoal = [];
+    peraihKerjaSama = 0; jeda = false; tindakanSetelahKoreksi = 'pilih';
+    sebarMakanan();
+    gambarSeluruhPapan();
+    gambarGarisKombinasi();
+    $('namaHudX').textContent = '✕ ' + namaX;
+    $('namaHudO').textContent = '◯ ' + namaO;
+    $('kS').options[0].textContent = '✕ ' + namaX;
+    $('kS').options[1].textContent = '◯ ' + namaO;
+    const labelMode = mode === 'waktu' ? '⏱ MODE WAKTU' : (mode === 'jumlah' ? '📋 MODE JUMLAH SOAL' : '❤️ LAST XXO STANDING');
+    $('lblMode').textContent = labelMode;
+    $('fbOverlay').hidden = true; $('pauseOverlay').hidden = true; $('helpPanel').hidden = true; $('comboBanner').hidden = true;
+    tampilkanLayar('gameScreen');
+    mulaiHitungMundur();
+  }
+
+  function tampilkanLayar(idLayar) {
+    ['setupScreen', 'gameScreen', 'endScreen'].forEach((id) => { $(id).hidden = (id !== idLayar); });
+  }
+
+  function mulaiHitungMundur() {
+    fase = 'hitung';
+    sisaHitungMs = 3000; // 3 - 2 - 1 lalu "GO!" ±0,6 detik
+    $('countOverlay').hidden = false;
+    $('countText').textContent = '3';
+    mulaiLoop();
+  }
+
+  function masukFasePilih() {
+    fase = 'pilih';
+    kotakTerpilih = -1;
+    perekor = null; sudahDitantang = false;
+    gambarSeluruhPapan();
+    tukarView('viewPilih');
+    $('lblFase').textContent = '👉 Berebutlah memilih kotak!';
+    perbaruiHUD();
+  }
+
+  // ---------- BAGIAN: PANEL AKSI (3 view: pilih / rebut / soal) ----------
+  function tukarView(idAktif) {
+    ['viewPilih', 'viewRebut', 'viewSoal'].forEach((id) => { $(id).hidden = (id !== idAktif); });
+  }
+
+  function klikKotak(i) {
+    if (fase !== 'pilih' || jeda) { return; }
+    if (pemilikKotak[i] !== -1) { return; } // kotak terisi terkunci
+    kotakTerpilih = i;
+    perekor = null; sudahDitantang = false;
+    sisaRebutMs = REBUT_MS;
+    fase = 'rebut';
+    $('rebutJudul').textContent = 'REBUT KOTAK ' + nomorKotak(i) + '!';
+    $('rebutCatatan').textContent = 'Tim mana yang paling cepat menekan?';
+    $('btnBukaSoal').hidden = true;
+    $('rebutX').disabled = false; $('rebutO').disabled = false;
+    tukarView('viewRebut');
+    gambarSeluruhPapan();
+    $('lblFase').textContent = '⚡ Rebutan kotak ' + nomorKotak(i);
+  }
+
+  function tekanRebut(t) {
+    if (fase !== 'rebut' || jeda) { return; }
+    if (!perekor) {
+      perekor = { timIdx: t, sisaSaatItu: sisaRebutMs };
+      $('rebutCatatan').textContent = SIMBOL_TIM[t] + ' ' + namaTim(t) + ' menekan lebih cepat! Lawan boleh menantang…';
+      $('rebutX').disabled = (t === 0); $('rebutO').disabled = (t === 1);
+      $('btnBukaSoal').hidden = false;
+      return;
+    }
+    if (perekor.timIdx === t) { return; }
+    if (sudahDitantang) {
+      $('rebutCatatan').textContent = 'Tantangan sudah dicatat — kotak milik ' + namaTim(perekor.timIdx) + '.';
+      return;
+    }
+    sudahDitantang = true;
+    const sejakTekanPertama = perekor.sisaSaatItu - sisaRebutMs;
+    if (mode === 'last') {
+      if (sejakTekanPertama <= KEJAR_MS) {
+        tabrakanKepalaVsKepala();
+      } else {
+        tabrakanTubuhLawan(t);
+      }
+    } else {
+      $('rebutCatatan').textContent = 'Kotak sudah direbut ' + namaTim(perekor.timIdx) + '!';
+    }
+  }
+
+  function selesaikanRebutan() {
+    // Panggilan dari tick: jendela rebut habis.
+    if (!perekor) {
+      // Tidak ada yang merebut -> lempar ke tim yangkotaknya lebih sedikit.
+      const t = tim[0].kotak <= tim[1].kotak ? 0 : 1;
+      perekor = { timIdx: t, sisaSaatItu: 0 };
+      $('rebutCatatan').textContent = 'Tidak ada yang merebut — dilempar ke ' + SIMBOL_TIM[t] + ' ' + namaTim(t) + '.';
+    }
+    bukaSoal();
+  }
+
+  function bukaSoal() {
+    if (fase === 'soal' || fase === 'koreksi' || fase === 'selesai') { return; }
+    const t = perekor ? perekor.timIdx : 0;
+    timPenjawab = t;
+    kotakAktif = kotakTerpilih;
+    soalAktif = pilihSoal();
+    totalSoalDiminta++;
+    pilihanTerpilih = -1; terkirim = false;
+    // Efek ⚡ Speed: jendela menjawab 10 detik lebih cepat (min 5 detik), poin 2×.
+    kecepatanAktif = tim[t].speedNext === true;
+    tim[t].speedNext = false;
+    jendelaJawabMs = kecepatanAktif ? Math.max(5000, waktuJwbMs - 10000) : waktuJwbMs;
+    sisaJawabMs = jendelaJawabMs;
+    const pn = $('penandaTim');
+    pn.className = 'labelTim ' + (t === 0 ? 'pihakX' : 'pihakO');
+    pn.textContent = SIMBOL_TIM[t] + ' ' + namaTim(t) + ' menjawab — Kotak ' + nomorKotak(kotakAktif) + (kecepatanAktif ? ' · ⚡ poin 2×' : '');
+    $('qMeta').innerHTML = 'Kotak ' + nomorKotak(kotakAktif) + ' · ' + esc(soalAktif.topic);
+    $('qText').innerHTML = esc(soalAktif.q);
+    for (let i = 0; i < 4; i++) {
+      const b = $('opt' + i);
+      const tersedia = i < soalAktif.opts.length;
+      b.hidden = !tersedia;
+      b.classList.remove('dipilih');
+      if (tersedia) { b.querySelector('.otxt').innerHTML = esc(soalAktif.opts[i]); }
+    }
+    $('btnKirim').disabled = true;
+    $('barSoalIsi').style.width = '100%';
+    $('barSoalIsi').classList.remove('mendesak');
+    fase = 'soal';
+    tukarView('viewSoal');
+    $('lblFase').textContent = '🧠 ' + namaTim(t) + ' menjawab kotak ' + nomorKotak(kotakAktif);
+    perbaruiTimerSoal();
+    perbaruiHUD();
+  }
+
+  function pilihOpsi(i) {
+    if (fase !== 'soal' || jeda || terkirim) { return; }
+    if (i >= soalAktif.opts.length) { return; }
+    if (pilihanTerpilih >= 0) { $('opt' + pilihanTerpilih).classList.remove('dipilih'); }
+    pilihanTerpilih = i;
+    $('opt' + i).classList.add('dipilih');
+    $('btnKirim').disabled = false;
+  }
+
+  // ---------- BAGIAN: PEMERIKSAAN JAWABAN ----------
+  function kirimJawaban() {
+    if (fase !== 'soal' || jeda || terkirim || pilihanTerpilih < 0) { return; }
+    terkirim = true;
+    const t = tim[timPenjawab];
+    const benar = pilihanTerpilih === soalAktif.ansIdx;
+    const waktuPakaiMs = jendelaJawabMs - sisaJawabMs;
+    const baris = [];
+    if (benar) {
+      const poinDapat = POIN_BENAR * (kecepatanAktif ? 2 : 1);
+      t.benar++; t.deretSalah = 0;
+      t.waktuBenar.push(waktuPakaiMs);
+      if (!t.tercepat || waktuPakaiMs < t.tercepat) { t.tercepat = waktuPakaiMs; }
+      kuasaiKotak(timPenjawab, kotakAktif, baris);
+      t.poin += poinDapat;
+      baris.unshift('✅ Jawaban Benar! +' + poinDapat + ' Poin' + (kecepatanAktif ? ' (⚡ 2×)' : ''));
+      cekKombinasiBaru(t, kotakAktif, baris);
+      efekSetelahKoreksi(baris, 'benar', 'BENAR!', '✅');
+    } else {
+      t.salah++; t.deretSalah++;
+      baris.push('❌ Jawaban salah — kotak ' + nomorKotak(kotakAktif) + ' tetap kosong, boleh direbut tim lain.');
+      const kunciTeks = soalAktif.opts[soalAktif.ansIdx];
+      baris.push('🔑 Kunci: ' + 'ABCD'.charAt(soalAktif.ansIdx) + ' — ' + kunciTeks);
+      if (soalAktif.explain) { baris.push('💡 ' + soalAktif.explain); }
+      if (mode === 'last' && t.deretSalah >= 3) {
+        t.deretSalah = 0;
+        tabrakanDinding(t, baris);
+      }
+      efekSetelahKoreksi(baris, 'salah', 'SALAH!', '❌');
+    }
+  }
+
+  function waktuHabisJawaban() {
+    if (fase !== 'soal' || terkirim) { return; }
+    terkirim = true;
+    const t = tim[timPenjawab];
+    t.salah++; t.deretSalah++;
+    const baris = [];
+    baris.push('⏰ Waktu habis! ' + namaTim(timPenjawab) + ' tidak mengirim jawaban.');
+    const kunciTeks = soalAktif.opts[soalAktif.ansIdx];
+    baris.push('🔑 Kunci: ' + 'ABCD'.charAt(soalAktif.ansIdx) + ' — ' + kunciTeks);
+    if (soalAktif.explain) { baris.push('💡 ' + soalAktif.explain); }
+    if (mode === 'last') {
+      tabrakanTubuhSendiri(t, baris);
+    }
+    efekSetelahKoreksi(baris, 'timeup', 'TIME’S UP!', '⏰');
+  }
+
+  function kuasaiKotak(timIdx, i, baris) {
+    if (pemilikKotak[i] !== -1) { return; }
+    pemilikKotak[i] = timIdx;
+    kotakTerisi++;
+    tim[timIdx].kotak++;
+    const jenis = isiKotak[i];
+    if (jenis) {
+      terapkanMakanan(jenis, tim[timIdx], baris);
+    }
+  }
+
+  function terapkanMakanan(jenis, t, baris) {
+    if (jenis === 'apel') { t.poin += 100; baris.push('🍎 Makanan! +100 Poin'); }
+    else if (jenis === 'bintang') { t.poin += 200; baris.push('⭐ Makanan! +200 Poin'); }
+    else if (jenis === 'berlian') { t.poin += 500; baris.push('💎 Makanan! +500 Poin'); }
+    else if (jenis === 'speed') { t.speedNext = true; baris.push('⚡ SPEED — soal berikutnya dijawab 10 detik lebih cepat & poin 2×!'); }
+    else if (jenis === 'shield') { t.shield = Math.min(3, t.shield + 1); baris.push('🛡️ SHIELD — menahan 1 tabrakan berikutnya'); }
+    else if (jenis === 'mystery') {
+      const dadu = angkaAcak(1, 4);
+      if (dadu <= 3) {
+        const hadiah = [100, 200, 500][dadu - 1];
+        t.poin += hadiah;
+        baris.push('❓ MYSTERY — hadiah acak +' + hadiah + ' Poin');
+      } else if (t.nyawa < NYAWA_AWAL && mode === 'last') {
+        t.nyawa++;
+        baris.push('❓ MYSTERY — ❤️ +1 nyawa!');
+      } else {
+        t.poin += 250;
+        baris.push('❓ MYSTERY — hadiah acak +250 Poin');
+      }
+    }
+  }
+
+  // ---------- BAGIAN: KOMBINASI 3 KOTAK ----------
+  function cekKombinasiBaru(t, kotakBaru, baris) {
+    const baru = [];
+    GARIS.forEach((g) => {
+      if (g.indexOf(kotakBaru) === -1) { return; }
+      const tanda = t.nama + '#' + g.join('-');
+      if (kombinasiTerbayar.has(tanda)) { return; } // kombinasi sama tidak dihitung dua kali
+      if (g.every((k) => pemilikKotak[k] === tim.indexOf(t))) {
+        kombinasiTerbayar.add(tanda);
+        t.kombinasi++;
+        t.poin += POIN_KOMBINASI;
+        daftarGarisKombinasi.push({ g: g, timIdx: tim.indexOf(t) });
+        g.forEach((k) => kotakDalamKombinasi.add(k));
+        baru.push(g);
+      }
+    });
+    if (baru.length) {
+      gambarGarisKombinasi();
+      baru.forEach((g) => {
+        const nomorGaris = g.map(nomorKotak).join('-');
+        baris.push('🎉 KOMBINASI! ' + nomorGaris + ' +' + POIN_KOMBINASI + ' Poin');
+      });
+      tampilkanBannerKombinasi(baru[baru.length - 1], t);
+    }
+  }
+
+  function tampilkanBannerKombinasi(g, t) {
+    const el = $('comboBanner');
+    el.textContent = '🎉 KOMBINASI ' + g.map(nomorKotak).join('-') + ' +' + POIN_KOMBINASI + ' Poin';
+    el.hidden = false;
+    setTimeout(() => { el.hidden = true; }, 1500);
+  }
+
+  function gambarGarisKombinasi() {
+    const svg = $('lineSvg');
+    while (svg.firstChild) { svg.removeChild(svg.firstChild); }
+    const wrap = $('boardWrap');
+    svg.setAttribute('width', wrap.scrollWidth + 'px');
+    svg.setAttribute('height', wrap.scrollHeight + 'px');
+    const wr = wrap.getBoundingClientRect();
+    daftarGarisKombinasi.forEach((item) => {
+      const a = $('kotak' + item.g[0]).getBoundingClientRect();
+      const c = $('kotak' + item.g[2]).getBoundingClientRect();
+      const garis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      garis.setAttribute('x1', (a.left - wr.left + wrap.scrollLeft + a.width / 2) + '');
+      garis.setAttribute('y1', (a.top - wr.top + wrap.scrollTop + a.height / 2) + '');
+      garis.setAttribute('x2', (c.left - wr.left + wrap.scrollLeft + c.width / 2) + '');
+      garis.setAttribute('y2', (c.top - wr.top + wrap.scrollTop + c.height / 2) + '');
+      garis.setAttribute('stroke', WARNA_TIM[item.timIdx]);
+      garis.setAttribute('stroke-width', '9');
+      garis.setAttribute('stroke-linecap', 'round');
+      garis.setAttribute('opacity', '.85');
+      svg.appendChild(garis);
+    });
+  }
+
+  // ---------- BAGIAN: TABRAKAN & NYAWA (mode LAST XXO STANDING) ----------
+  function kurangiNyawa(t) {
+    if (t.shield > 0) { t.shield--; return 'ditahan'; }
+    t.nyawa = Math.max(0, t.nyawa - 1);
+    if (t.nyawa === 0 && koTim === -1) { koTim = tim.indexOf(t); }
+    return t.nyawa;
+  }
+
+  function tabrakanDinding(t, baris) {
+    const hasil = kurangiNyawa(t);
+    if (hasil === 'ditahan') {
+      baris.push('💥 Tabrakan DINDING dibatalkan 🛡️ Shield!');
+    } else {
+      t.poin = Math.max(0, t.poin - DENDA_TABRAKAN);
+      baris.push('💥 TABRAKAN DINDING! 3 salah beruntun — ' + namaTim(tim.indexOf(t)) + ' −1 nyawa & −100 poin → ❤️ ' + t.nyawa);
+    }
+  }
+
+  function tabrakanTubuhSendiri(t, baris) {
+    const hasil = kurangiNyawa(t);
+    if (hasil === 'ditahan') {
+      baris.push('💥 Tabrakan TUBUH SENDIRI dibatalkan 🛡️ Shield!');
+    } else {
+      t.poin = Math.max(0, t.poin - DENDA_TABRAKAN);
+      baris.push('💥 TABRAKAN TUBUH SENDIRI! waktu habis — ' + namaTim(tim.indexOf(t)) + ' −1 nyawa & −100 poin → ❤️ ' + t.nyawa);
+    }
+  }
+
+  function tabrakanKepalaVsKepala() {
+    const baris = [];
+    const h0 = kurangiNyawa(tim[0]);
+    const h1 = kurangiNyawa(tim[1]);
+    baris.push('💥 KEPALA VS KEPALA! Kedua tim merebut kotak ' + nomorKotak(kotakTerpilih) + ' nyaris bersamaan.');
+    baris.push('❤️ ' + namaTim(0) + (h0 === 'ditahan' ? ' selamat (shield)' : ' tinggal ' + h0) + ' · ' + namaTim(1) + (h1 === 'ditahan' ? ' selamat (shield)' : ' tinggal ' + h1));
+    baris.push('Kotak ' + nomorKotak(kotakTerpilih) + ' batal direbut — tetap kosong.');
+    tampilkanKoreksi('tabrakan', 'KEPALA VS KEPALA!', '💥', baris, 'pilih');
+  }
+
+  function tabrakanTubuhLawan(penantang) {
+    const baris = [];
+    const hasil = kurangiNyawa(tim[penantang]);
+    baris.push('💥 TUBUH LAWAN! ' + namaTim(penantang) + ' menabrak rebutan ' + namaTim(perekor.timIdx) + '.');
+    baris.push(hasil === 'ditahan' ? '🛡️ Shield membatalkan tabrakan!' : '−1 nyawa untuk penabrak → ❤️ ' + tim[penantang].nyawa);
+    baris.push('Hak menjawab tetap milik ' + namaTim(perekor.timIdx) + '.');
+    tampilkanKoreksi('tabrakan', 'TABRAKAN TUBUH LAWAN!', '💥', baris, 'soal');
+  }
+
+  // ---------- BAGIAN: OVERLAY KOREKSI ----------
+  // 'tindakanSetelahKoreksi': 'pilih' = kembali memilih kotak, 'soal' = langsung buka soal.
+  let tindakanSetelahKoreksi = 'pilih';
+
+  function tampilkanKoreksi(gaya, judul, emoji, baris, setelah) {
+    fase = 'koreksi';
+    sisaKoreksiMs = KOREKSI_MS;
+    const card = $('fbCard');
+    card.className = gaya;
+    $('fbEmoji').textContent = emoji;
+    $('fbTitle').textContent = judul;
+    const box = $('fbLines');
+    box.innerHTML = '';
+    baris.forEach((b) => {
+      const p = document.createElement('div');
+      if (b.indexOf('🎉') === 0 || b.indexOf('✅') === 0) { p.className = 'emas'; }
+      p.innerHTML = esc(b);
+      box.appendChild(p);
+    });
+    $('fbOverlay').hidden = false;
+    tindakanSetelahKoreksi = setelah || 'pilih';
+    gambarSeluruhPapan();
+    perbaruiHUD();
+  }
+
+  function efekSetelahKoreksi(baris, gaya, judul, emoji) {
+    tampilkanKoreksi(gaya, judul, emoji, baris, 'pilih');
+  }
+
+  function lanjutSetelahKoreksi() {
+    $('fbOverlay').hidden = true;
+    if (koTim !== -1) {
+      akhiriPermainan('💀 GAME OVER — ' + namaTim(koTim) + ' kehilangan seluruh nyawa!');
+      return;
+    }
+    if (akhirTertunda) { akhiriPermainan(akhirTertunda); akhirTertunda = ''; return; }
+    if (kotakTerisi >= TOTAL_KOTAK) { akhiriPermainan('📦 Seluruh kotak 01–40 sudah terkuasai!'); return; }
+    if (mode === 'jumlah' && totalSoalDiminta >= kuotaSoal) { akhiriPermainan('📋 Kuota ' + kuotaSoal + ' soal selesai!'); return; }
+    if (mode === 'waktu' && sisaBalapanMs <= 0) { akhiriPermainan('⏱ Waktu habis!'); return; }
+    if (tindakanSetelahKoreksi === 'soal') {
+      // Tabrakan tubuh lawan: hak jawab tetap, langsung buka soal untuk perekor.
+      tindakanSetelahKoreksi = 'pilih';
+      fase = 'pilih'; // agar guard di bukaSoal tidak memblokir
+      if (perekor) { bukaSoal(); } else { masukFasePilih(); }
+      return;
+    }
+    tindakanSetelahKoreksi = 'pilih';
+    masukFasePilih();
+  }
+
+  // ---------- BAGIAN: LOOP WAKTU (delta performance.now — SPEC-GAMES §5) ----------
+  function mulaiLoop() {
+    if (rafAktif) { return; }
+    rafAktif = true;
+    lastTime = performance.now();
+    rafId = requestAnimationFrame(tik);
+  }
+  let rafId = 0;
+  function hentikanLoop() {
+    rafAktif = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+  }
+
+  function tik(now) {
+    if (!rafAktif) { return; }
+    rafId = requestAnimationFrame(tik);
+    let d = now - lastTime;
+    lastTime = now;
+    if (d < 0) { d = 0; }
+    if (d > 250) { d = 250; } // tab tak aktif -> jangan lompat jauh
+    if (jeda) { return; }
+
+    // Timer durasi balapan (mode WAKTU) berjalan terus selama bermain.
+    if (mode === 'waktu' && (fase === 'pilih' || fase === 'rebut' || fase === 'soal' || fase === 'koreksi' || fase === 'hitung')) {
+      sisaBalapanMs -= d;
+      if (sisaBalapanMs <= 0) {
+        sisaBalapanMs = 0;
+        if (fase === 'soal') { akhirTertunda = '⏱ Waktu habis!'; waktuHabisJawaban(); }
+        else if (fase === 'koreksi') { akhirTertunda = akhirTertunda || '⏱ Waktu habis!'; }
+        else if (fase === 'pilih' || fase === 'rebut') { akhiriPermainan('⏱ Waktu habis!'); return; }
+      }
+    }
+
+    if (fase === 'hitung') {
+      sisaHitungMs -= d;
+      const sisaDetik = Math.ceil(sisaHitungMs / 1000);
+      $('countText').textContent = sisaDetik > 0 ? String(Math.min(3, sisaDetik)) : 'GO!';
+      if (sisaHitungMs <= -600) {
+        $('countOverlay').hidden = true;
+        masukFasePilih();
+      }
+    } else if (fase === 'rebut') {
+      sisaRebutMs -= d;
+      $('rebutBar').style.width = Math.max(0, (sisaRebutMs / REBUT_MS) * 100) + '%';
+      if (sisaRebutMs <= 0) {
+        if (perekor) { bukaSoal(); } else { selesaikanRebutan(); }
+      }
+    } else if (fase === 'soal') {
+      if (!terkirim) {
+        sisaJawabMs -= d;
+        perbaruiTimerSoal();
+        if (sisaJawabMs <= 0) { waktuHabisJawaban(); }
+      }
+    } else if (fase === 'koreksi') {
+      sisaKoreksiMs -= d;
+      if (sisaKoreksiMs <= 0) { lanjutSetelahKoreksi(); }
+    }
+
+    perbaruiHUD();
+  }
+
+  function perbaruiTimerSoal() {
+    const det = Math.max(0, Math.ceil(sisaJawabMs / 1000));
+    const el = $('timerSoal');
+    el.textContent = '⏱ ' + det + ' Detik' + (kecepatanAktif ? ' ⚡' : '');
+    const mendesak = det <= 3;
+    el.classList.toggle('mendesak', mendesak);
+    $('barSoalIsi').style.width = Math.max(0, (sisaJawabMs / jendelaJawabMs) * 100) + '%';
+    $('barSoalIsi').classList.toggle('mendesak', mendesak);
+  }
+
+  // ---------- BAGIAN: HUD ----------
+  function tumpukNyawa(t) {
+    if (t.nyawa <= 0) { return '💀 GAME OVER'; }
+    return '❤️'.repeat(t.nyawa) + '🖤'.repeat(NYAWA_AWAL - t.nyawa);
+  }
+
+  function perbaruiHUD() {
+    if (!tim.length) { return; }
+    $('poinHudX').textContent = tim[0].poin;
+    $('poinHudO').textContent = tim[1].poin;
+    const nX = $('nyawaHudX'), nO = $('nyawaHudO');
+    nX.textContent = tumpukNyawa(tim[0]);
+    nO.textContent = tumpukNyawa(tim[1]);
+    nX.classList.toggle('habis', tim[0].nyawa <= 0);
+    nO.classList.toggle('habis', tim[1].nyawa <= 0);
+    $('metaHudX').textContent = '🧩 ' + tim[0].kombinasi + ' kombinasi · 📦 ' + tim[0].kotak + ' kotak' + (tim[0].shield > 0 ? ' · 🛡️' + tim[0].shield : '') + (tim[0].speedNext ? ' · ⚡' : '');
+    $('metaHudO').textContent = '🧩 ' + tim[1].kombinasi + ' kombinasi · 📦 ' + tim[1].kotak + ' kotak' + (tim[1].shield > 0 ? ' · 🛡️' + tim[1].shield : '') + (tim[1].speedNext ? ' · ⚡' : '');
+    const lw = $('lblWaktu');
+    if (mode === 'waktu') {
+      lw.textContent = formatDetik(sisaBalapanMs);
+      lw.classList.toggle('mendesak', sisaBalapanMs <= 30000);
+    } else if (mode === 'jumlah') {
+      lw.textContent = '📋 ' + totalSoalDiminta + ' / ' + kuotaSoal + ' soal';
+      lw.classList.remove('mendesak');
+    } else {
+      lw.textContent = '❤️ ' + tim[0].nyawa + ' vs ' + tim[1].nyawa + ' ❤️';
+      lw.classList.remove('mendesak');
+    }
+  }
+
+  // ---------- BAGIAN: SELESAI & HASIL ----------
+  function akhiriPermainan(alasan) {
+    if (fase === 'selesai') { return; }
+    fase = 'selesai';
+    hentikanLoop();
+    $('fbOverlay').hidden = true;
+    $('countOverlay').hidden = true;
+    $('pauseOverlay').hidden = true;
+    $('comboBanner').hidden = true;
+    renderHasil(alasan);
+    tampilkanLayar('endScreen');
+  }
+
+  function rataRataWaktuDetik(t) {
+    if (!t.waktuBenar.length) { return 0; }
+    const tot = t.waktuBenar.reduce((a, b) => a + b, 0);
+    return Math.round((tot / t.waktuBenar.length / 1000) * 10) / 10;
+  }
+
+  function renderHasil(alasan) {
+    const urut = [0, 1].sort((a, b) => tim[b].poin - tim[a].poin);
+    const t1 = tim[urut[0]], t2 = tim[urut[1]];
+    $('endReason').textContent = alasan || 'Permainan selesai.';
+    let teksJuara;
+    if (t1.poin === t2.poin) {
+      teksJuara = '🤝 SERI! ' + t1.poin + ' poin untuk kedua tim.';
+    } else {
+      teksJuara = '🏆 ' + namaTim(tim.indexOf(t1)) + ' MENANG — ' + t1.poin + ' vs ' + t2.poin + ' poin!';
+    }
+    $('winnerBox').textContent = teksJuara;
+    const eb = $('endBoard');
+    eb.innerHTML = '';
+    urut.forEach((idx, i) => {
+      const t = tim[idx];
+      const r = document.createElement('div');
+      r.className = 'barisHasil';
+      r.innerHTML = '<span>' + (i + 1) + '. ' + esc(SIMBOL_TIM[idx] + ' ' + t.nama) + '</span>' +
+        '<span class="muted">📦 ' + t.kotak + ' kotak · 🧩 ' + t.kombinasi + ' kombinasi · ✅ ' + t.benar + ' benar · ❌ ' + t.salah + ' salah · ❤️ ' + t.nyawa + '</span>' +
+        '<b>' + t.poin + '</b>';
+      eb.appendChild(r);
+    });
+    renderPenghargaan();
+  }
+
+  function renderPenghargaan() {
+    const baris = [];
+    // 🏆 XXO CHAMPION — poin tertinggi
+    const juara = tim[0].poin === tim[1].poin ? null : (tim[0].poin > tim[1].poin ? 0 : 1);
+    baris.push({ i: '🏆 XXO CHAMPION', v: juara === null ? 'Berbagi' : namaTim(juara) });
+    // 🧩 MASTER KOMBINASI — kombinasi terbanyak
+    const komb = tim[0].kombinasi === tim[1].kombinasi ? null : (tim[0].kombinasi > tim[1].kombinasi ? 0 : 1);
+    baris.push({ i: '🧩 MASTER KOMBINASI', v: komb === null ? 'Berbagi' : namaTim(komb) + ' (' + Math.max(tim[0].kombinasi, tim[1].kombinasi) + ')' });
+    // 🛡️ BENTENG TANGGUH — nyawa tersisa terbanyak
+    const benteng = tim[0].nyawa === tim[1].nyawa ? null : (tim[0].nyawa > tim[1].nyawa ? 0 : 1);
+    baris.push({ i: '🛡️ BENTENG TANGGUH', v: benteng === null ? 'Berbagi' : namaTim(benteng) + ' (❤️' + Math.max(tim[0].nyawa, tim[1].nyawa) + ')' });
+    // ⚡ TERCEPAT — waktu jawaban benar tercepat
+    const punyaCepat = (tim[0].tercepat > 0 || tim[1].tercepat > 0);
+    let cepatV = '-';
+    if (punyaCepat) {
+      if (!tim[0].tercepat) { cepatV = namaTim(1); }
+      else if (!tim[1].tercepat) { cepatV = namaTim(0); }
+      else if (tim[0].tercepat === tim[1].tercepat) { cepatV = 'Berbagi'; }
+      else { cepatV = namaTim(tim[0].tercepat < tim[1].tercepat ? 0 : 1); }
+    }
+    baris.push({ i: '⚡ TERCEPAT', v: cepatV });
+    // 🤝 KERJA SAMA — pilihan guru
+    baris.push({ i: '🤝 KERJA SAMA', v: namaTim(peraihKerjaSama) });
+    const box = $('awardRow');
+    box.innerHTML = '';
+    baris.forEach((b) => {
+      const d = document.createElement('div');
+      d.className = 'award';
+      d.innerHTML = esc(b.i) + ' <b>' + esc(b.v) + '</b>';
+      box.appendChild(d);
+    });
+  }
+
+  // ---------- BAGIAN: UNDUH REKAP CSV (SPEC-GAMES §5) ----------
+  function unduhRekap() {
+    const tanggal = new Date().toISOString().slice(0, 10);
+    const urut = [0, 1].sort((a, b) => tim[b].poin - tim[a].poin);
+    const barisCsv = [['peringkat', 'nama tim', 'poin', 'benar', 'salah', 'kotak', 'kombinasi', 'nyawa sisa', 'waktu rata-rata (detik)']];
+    urut.forEach((idx, i) => {
+      const t = tim[idx];
+      barisCsv.push([String(i + 1), SIMBOL_TIM[idx] + ' ' + t.nama, String(t.poin), String(t.benar), String(t.salah), String(t.kotak), String(t.kombinasi), String(t.nyawa), String(rataRataWaktuDetik(t))]);
+    });
+    const csv = barisCsv.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'hasil-xxo-edukasi-' + tanggal + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  // ---------- BAGIAN: JEDA / SELESAI OLEH GURU ----------
+  function pasangJeda() {
+    if (fase === 'selesai' || fase === 'diam') { return; }
+    jeda = true;
+    $('pauseOverlay').hidden = false;
+  }
+  function lepasJeda() {
+    jeda = false;
+    lastTime = performance.now();
+    $('pauseOverlay').hidden = true;
+  }
+  function bukaTutupBantuan() {
+    const hp = $('helpPanel');
+    if (hp.hidden) {
+      hp.hidden = false;
+      // Bekukan timer saat bantuan terbuka (tanpa menampilkan overlay jeda).
+      if (fase !== 'selesai' && fase !== 'diam') { jeda = true; }
+    } else {
+      hp.hidden = true;
+      if (jeda && fase !== 'selesai' && fase !== 'diam') { lepasJeda(); }
+    }
+  }
+
+  // ---------- BAGIAN: RESET TOTAL (Main Lagi — tanpa state bocor) ----------
+  function resetSemua() {
+    hentikanLoop();
+    fase = 'diam'; jeda = false;
+    pemilikKotak = new Array(TOTAL_KOTAK).fill(-1);
+    kombinasiTerbayar = new Set();
+    daftarGarisKombinasi = [];
+    kotakDalamKombinasi = new Set();
+    totalSoalDiminta = 0; kotakTerisi = 0; koTim = -1; akhirTertunda = '';
+    perekor = null; sudahDitantang = false; kotakTerpilih = -1; kotakAktif = -1;
+    soalAktif = null; timPenjawab = -1; pilihanTerpilih = -1; terkirim = false;
+    kecepatanAktif = false; antreanSoal = [];
+    if (tim.length) { tim.forEach((t) => { t.speedNext = false; }); }
+    $('fbOverlay').hidden = true; $('countOverlay').hidden = true; $('pauseOverlay').hidden = true; $('comboBanner').hidden = true;
+    tampilkanLayar('setupScreen');
+  }
+
+  // ---------- BAGIAN: PENANGANAN ELEMEN & EVENT ----------
+  function pasangEvent() {
+    $('btnMulai').addEventListener('click', mulaiPermainan);
+    $('btnHelpSetup').addEventListener('click', bukaTutupBantuan);
+    $('btnHelpGame').addEventListener('click', bukaTutupBantuan);
+    $('btnCloseHelp').addEventListener('click', () => { $('helpPanel').hidden = true; if (jeda) { lepasJeda(); } });
+    $('btnPause').addEventListener('click', () => { if (fase !== 'selesai') { pasangJeda(); } });
+    $('btnResume').addEventListener('click', lepasJeda);
+    $('btnSelesai').addEventListener('click', () => { if (fase !== 'selesai' && fase !== 'diam') { akhiriPermainan('🏁 Dihentikan guru.'); } });
+    $('btnSelesai2').addEventListener('click', () => { jeda = false; $('pauseOverlay').hidden = true; akhiriPermainan('🏁 Dihentikan guru.'); });
+    $('btnAgain').addEventListener('click', resetSemua);
+    $('btnCsv').addEventListener('click', unduhRekap);
+    $('btnKS').addEventListener('click', () => { peraihKerjaSama = parseInt($('kS').value, 10) || 0; renderPenghargaan(); });
+    $('rebutX').addEventListener('click', () => tekanRebut(0));
+    $('rebutO').addEventListener('click', () => tekanRebut(1));
+    $('btnBukaSoal').addEventListener('click', () => { if (fase === 'rebut' && perekor) { bukaSoal(); } });
+    $('btnKirim').addEventListener('click', kirimJawaban);
+    for (let i = 0; i < 4; i++) {
+      $('opt' + i).addEventListener('click', () => pilihOpsi(i));
+    }
+    window.addEventListener('resize', () => { if (daftarGarisKombinasi.length) { gambarGarisKombinasi(); } });
+  }
+
+  // ---------- BAGIAN: INISIALISASI ----------
+  bangunPapan();
+  gambarSeluruhPapan();
+  pasangEvent();
+  loadQuestions();
+})();
+</script>
+</body>
+</html>

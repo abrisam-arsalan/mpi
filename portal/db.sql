@@ -72,24 +72,35 @@ CREATE TABLE IF NOT EXISTS mpi_soal (
   CONSTRAINT fk_soal_guru FOREIGN KEY (guru_id) REFERENCES mpi_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- -------------------- Seed 5 game --------------------
--- file_path masih placeholder; isi setelah file HTML tiap game siap.
+-- -------------------- Seed 9 game --------------------
 INSERT INTO mpi_games (slug, nama, deskripsi, icon, file_path, tipe, urutan) VALUES
   ('kamera-benar-salah', 'Game Kamera Benar-Salah',
    'Siswa berdiri di zona A/B, kamera mendeteksi posisi secara otomatis.', '📷',
    'kamera-benar-salah.html', 'benar_salah', 1),
-  ('famili-100', 'Kuis Famili 100',
-   'Tebak jawaban terpopuler ala Famili 100.', '💯',
+  ('famili-100', 'Kuis Family 100',
+   'Dua tim, 5 jawaban survei. Jawab benar kotak terbuka, 3X giliran berpindah.', '💯',
    'famili-100.html', 'famili100', 2),
-  ('clash-of-champions', 'Kuis Clash of Champions',
-   'Adu cepat antar siswa/kelompok.', '⚔️',
+  ('clash-of-champions', 'Class of Champions',
+   '2-8 tim, papan 40 soal. Rebutan, kirim jawaban dalam 10 detik, peringkat otomatis.', '⚔️',
    'clash-of-champions.html', 'clash', 3),
-  ('gesture-battle', 'Game Gesture Battle',
-   'Arahkan tangan ke gelembung jawaban yang benar. Gelembung benar meletus hijau, salah meletus merah.', '🙌',
+  ('gesture-battle', 'Motion Quest AR (Gesture Battle)',
+   'Arahkan tangan ke gelembung jawaban. Benar meletus hijau, salah meletus merah. Ada combo, power move, dan final boss.', '🙌',
    'gesture-battle.html', 'gesture', 4),
-  ('millionaire', 'Kuis Who Wants To Be Millionaire',
-   'Soal bertingkat menuju hadiah 1 miliar.', '💰',
-   'millionaire.html', 'millionaire', 5)
+  ('millionaire', 'Who Wants To Be Millionaire',
+   '15 tingkat menuju 1 miliar. 3 bantuan: 50:50, Tanya Penonton, Telepon Teman.', '💰',
+   'millionaire.html', 'millionaire', 5),
+  ('edu-racing', 'Edu Racing',
+   'Siapa cepat, dia melaju! Rebutan soal, jawaban benar membuat mobil melaju dan poin bertambah.', '🏎️',
+   'edu-racing.html', 'racing', 6),
+  ('mystery-box', 'Mystery Box',
+   '40 kotak rahasia. Pilih kotak, jawab dalam 30 detik, kumpulkan poin terbanyak.', '🎁',
+   'mystery-box.html', 'mysterybox', 7),
+  ('xxo-edukasi', 'XXO Edukasi',
+   'Rebut kotak, jawab soal, susun 3 kotak berurutan. Punya nyawa dan power-up.', '⭕',
+   'xxo-edukasi.html', 'xxo', 8),
+  ('snake-quiz', 'Snake Quiz',
+   'Dua ular satu arena. Kejar makanan, jawab soal, hindari tabrakan.', '🐍',
+   'snake-quiz.html', 'snake', 9)
 ON DUPLICATE KEY UPDATE slug = slug;
 
 -- -------------------- Mata pelajaran awal --------------------

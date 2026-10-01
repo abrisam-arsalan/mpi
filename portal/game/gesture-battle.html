@@ -3,238 +3,413 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Gesture Battle — MPI SMP 5 Tegal</title>
-<!-- MediaPipe -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<title>MOTION QUEST AR — Gesture Battle | Portal MPI SMP 5 Tegal</title>
+
+<!-- Tidak ada tag script eksternal di sini. MediaPipe dimuat lewat import() dinamis di dalam JS:
+     1) SELF-HOST DULU  -> game/vendor/vision_bundle.js + game/vendor/wasm + game/vendor/hand_landmarker.task
+     2) CDN HANYA CADANGAN (jsdelivr tasks-vision + storage.googleapis.com) bila berkas lokal tidak ada.
+     Model yang dipakai: tasks-vision HandLandmarker (API baru), BUKAN @mediapipe/hands API lama. -->
+
 <style>
-  :root {
-    --bg: #0b1024;
-    --panel: #121a3a;
-    --gold: #f5c518;
-    --ok: #22c55e;
-    --bad: #ef4444;
-    --p1: #3b82f6;
-    --p2: #f97316;
+  /* ============ KONVENSI GAYA VISUAL PORTAL (SPEC-GAMES.md bag. 2) ============ */
+  :root{
+    --bg:#0b1024; --panel:#121a3a; --line:#2a3a8a; --muted:#94a3b8;
+    --gold:#f5c518; --ok:#22c55e; --bad:#ef4444;
   }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  [hidden] { display: none !important; }
-  html, body {
-    margin: 0; padding: 0; width: 100%; height: 100%;
-    overflow: hidden; background: var(--bg); color: #fff;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    user-select: none;
-  }
-  button {
-    font-family: inherit; cursor: pointer; border: none; border-radius: 12px;
-    font-weight: 800; font-size: 16px;
-  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden]{ display:none !important; }
+  html,body{ background:var(--bg); color:#fff; margin:0; padding:0; width:100%; height:100%;
+    overflow:hidden; user-select:none;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  button{ font-family:inherit; cursor:pointer; border:none; border-radius:12px; font-weight:800; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px; }
+  .muted{ color:var(--muted); }
+  .gradBg{ background:radial-gradient(circle at 50% 20%,#1b2a6b,#0b1024 65%); }
 
-  /* ---------- Setup ---------- */
-  #setupScreen {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 16px; padding: 30px;
-    background: radial-gradient(circle at 50% 20%, #1b2a6b, #0b1024 65%);
-  }
-  #setupScreen h1 { margin: 0; font-size: clamp(34px, 6vw, 64px); color: var(--gold); text-align: center; }
-  #setupScreen p { margin: 0; color: #cbd5e1; font-size: clamp(15px, 2vw, 20px); text-align: center; max-width: 640px; }
-  .setup-box {
-    width: min(480px, 92%); background: var(--panel); border: 1px solid #2a3a8a;
-    border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 12px;
-  }
-  .setup-row { display: flex; align-items: center; gap: 10px; }
-  .setup-row label { width: 130px; text-align: right; color: #cbd5e1; font-size: 14px; }
-  .setup-row input {
-    flex: 1; padding: 10px 12px; border-radius: 9px; border: 1px solid #334155;
-    background: #0b1220; color: #fff; font-size: 15px;
-  }
-  #btnStart {
-    background: var(--gold); color: #1c1917;
-    font-size: clamp(18px, 2.4vw, 24px); padding: 16px 48px; margin-top: 6px;
-  }
-  #btnStart:disabled { opacity: .5; cursor: not-allowed; }
-  .cam-hint { color: #94a3b8; font-size: 13px; text-align: center; max-width: 420px; }
-  #statusMsg { color: #f87171; font-size: 14px; min-height: 20px; text-align: center; }
+  /* Kanvas arena penuh layar (gelembung, partikel, kursor tangan) */
+  #arena{ position:fixed; inset:0; width:100%; height:100%; z-index:1; display:block; }
 
-  /* ---------- Game ---------- */
-  #gameScreen { position: absolute; inset: 0; }
-  #gameCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* ---------- LAYAR 1: PERSIAPAN ---------- */
+  #setupScreen{ position:fixed; inset:0; z-index:20; overflow:auto; padding:22px 16px 34px;
+    display:flex; flex-direction:column; align-items:center; gap:12px; }
+  #setupScreen h1{ margin:0; color:var(--gold); font-size:clamp(30px,5vw,58px); text-align:center; letter-spacing:1px; }
+  #setupScreen .sub{ margin:0; color:#cbd5e1; font-size:clamp(15px,2.1vw,22px); text-align:center; }
+  .box{ width:min(760px,96%); padding:16px 18px; display:flex; flex-direction:column; gap:10px; }
+  .row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .row > .lbl{ min-width:150px; color:#cbd5e1; font-size:clamp(13px,1.5vw,16px); font-weight:700; }
+  select,input[type=text]{ padding:11px 12px; border-radius:10px; border:1px solid #334155;
+    background:#0b1220; color:#fff; font-size:clamp(15px,1.7vw,18px); font-family:inherit; }
+  select{ min-height:46px; }
+  input[type=text]{ min-height:46px; flex:1; }
+  #nameBox{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:8px; width:100%; }
+  .nameItem{ display:flex; align-items:center; gap:8px; }
+  .nameItem .dot{ width:16px; height:16px; border-radius:50%; flex:0 0 auto; }
+  .btnRow{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn{ background:#1b2a6b; border:2px solid var(--line); color:#fff; font-size:clamp(14px,1.7vw,18px);
+    padding:12px 18px; min-height:48px; min-width:48px; }
+  .btn:hover{ background:#22348a; }
+  #btnStart{ background:var(--gold); color:#1c1917; font-size:clamp(19px,2.5vw,26px); padding:15px 46px; min-height:56px; }
+  #camStatus{ font-size:clamp(13px,1.6vw,16px); min-height:22px; text-align:center; color:#a5b4fc; }
+  #srcName{ font-size:clamp(13px,1.6vw,16px); color:var(--muted); text-align:center; }
 
-  #hudTop {
-    position: absolute; top: 0; left: 0; right: 0;
-    display: flex; justify-content: space-between; align-items: flex-start;
-    padding: 14px 18px; pointer-events: none;
-  }
-  .score-box {
-    background: rgba(10, 15, 40, .82); border: 2px solid;
-    border-radius: 14px; padding: 10px 18px; min-width: 120px; text-align: center;
-    backdrop-filter: blur(4px);
-  }
-  .score-box.p1 { border-color: var(--p1); box-shadow: 0 0 16px rgba(59,130,246,.25); }
-  .score-box.p2 { border-color: var(--p2); box-shadow: 0 0 16px rgba(249,115,22,.25); }
-  .score-box .name { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
-  .score-box.p1 .name { color: var(--p1); }
-  .score-box.p2 .name { color: var(--p2); }
-  .score-box .score { font-size: 34px; font-weight: 900; color: #fff; line-height: 1; }
+  /* ---------- LAYAR 2: BERMAIN (HUD di atas kanvas) ---------- */
+  #gameScreen{ position:fixed; inset:0; z-index:10; pointer-events:none; }
+  #scoreBar{ position:absolute; top:8px; left:12px; right:12px; display:flex; justify-content:space-between;
+    align-items:flex-start; gap:8px; }
+  .scCard{ background:var(--panel); border:2px solid var(--line); border-radius:14px; padding:6px 14px;
+    min-width:110px; text-align:center; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  .scCard .nm{ display:block; font-size:clamp(12px,1.5vw,16px); font-weight:800; letter-spacing:.4px; }
+  .scCard .pt{ display:block; font-size:clamp(22px,3.2vw,38px); font-weight:900; line-height:1.1; }
+  .scCard .lv{ display:block; font-size:11px; color:var(--muted); }
+  #qHead{ position:absolute; top:84px; left:50%; transform:translateX(-50%); width:min(940px,96%);
+    text-align:center; pointer-events:none; }
+  #qMeta{ display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap;
+    font-size:clamp(13px,1.7vw,18px); font-weight:800; }
+  .chip{ background:rgba(18,26,58,.82); border:1px solid var(--line); border-radius:999px; padding:5px 14px; }
+  #chipTimer{ color:#1c1917; background:var(--gold); border-color:#a16207; min-width:76px; }
+  #chipTimer.low{ background:var(--bad); color:#fff; border-color:#7f1d1d; }
+  #qText{ margin-top:6px; font-size:clamp(19px,2.9vw,34px); font-weight:900; line-height:1.3;
+    text-shadow:0 2px 10px rgba(0,0,0,.75); }
+  #qBoss{ color:#fecaca; }
+  #hearts{ font-size:clamp(18px,2.4vw,28px); letter-spacing:3px; }
+  #zoneBar{ position:absolute; bottom:78px; left:12px; right:12px; display:flex; justify-content:space-between;
+    gap:6px; font-size:clamp(12px,1.5vw,16px); font-weight:800; }
+  .zChip{ flex:1; text-align:center; background:rgba(18,26,58,.75); border:1px solid var(--line);
+    border-radius:10px; padding:5px 6px; }
+  #teacherBar{ position:absolute; bottom:14px; left:12px; right:12px; display:flex; gap:8px;
+    align-items:center; justify-content:center; pointer-events:auto; flex-wrap:wrap; }
+  #teacherBar .btn{ padding:10px 16px; font-size:clamp(13px,1.6vw,17px); }
+  #modeChip{ position:absolute; top:8px; left:50%; transform:translateX(-50%); font-size:clamp(12px,1.5vw,16px); }
 
-  #questionBar {
-    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-    width: min(720px, 52%); background: rgba(10,15,40,.88);
-    border: 1px solid #2a3a8a; border-radius: 16px; padding: 14px 22px;
-    text-align: center; pointer-events: none; backdrop-filter: blur(4px);
-  }
-  #questionText { font-size: clamp(18px, 2.4vw, 28px); font-weight: 800; line-height: 1.35; }
-  #questionMeta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  /* Preview webcam kecil pojok kanan bawah, dicerminkan */
+  #camBox{ position:fixed; right:12px; bottom:78px; width:min(210px,28vw); aspect-ratio:4/3; z-index:12;
+    border:2px solid var(--line); border-radius:12px; overflow:hidden; background:#000; pointer-events:none; }
+  #videoEl{ width:100%; height:100%; object-fit:fill; display:block; transform:scaleX(-1); }
+  #videoEl.nomirror{ transform:none; }
+  #vidDot{ position:absolute; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%;
+    background:var(--gold); border:2px solid #fff; box-shadow:0 0 10px var(--gold); display:none; }
 
-  #timerBox {
-    position: absolute; top: 86px; left: 50%; transform: translateX(-50%);
-    background: rgba(10,15,40,.8); border: 1px solid #2a3a8a; border-radius: 999px;
-    padding: 6px 18px; font-size: 20px; font-weight: 900; pointer-events: none;
-  }
-  #timerBox.low { color: var(--bad); border-color: var(--bad); }
+  /* ---------- LAYAR 3: HASIL ---------- */
+  #endScreen{ position:fixed; inset:0; z-index:30; overflow:auto; padding:24px 16px 40px;
+    display:flex; flex-direction:column; align-items:center; gap:14px; }
+  #endTitle{ margin:0; color:var(--gold); font-size:clamp(24px,4vw,46px); }
+  #winnerBox{ font-size:clamp(19px,3.2vw,36px); font-weight:900; text-align:center; }
+  #podium{ display:flex; gap:10px; align-items:flex-end; justify-content:center; flex-wrap:wrap; width:min(760px,96%); }
+  .pod{ flex:1 1 150px; max-width:220px; text-align:center; border-radius:14px 14px 6px 6px; padding:12px 8px 16px;
+    background:var(--panel); border:2px solid var(--line); }
+  .pod .rk{ font-size:34px; line-height:1; }
+  .pod .pnm{ font-weight:900; font-size:clamp(14px,1.8vw,19px); margin-top:6px; }
+  .pod .ppt{ font-size:clamp(18px,2.4vw,26px); font-weight:900; color:var(--gold); }
+  .pod.p1{ border-color:var(--gold); }
+  #lbTable{ width:min(760px,96%); border-collapse:collapse; font-size:clamp(14px,1.9vw,20px); }
+  #lbTable th,#lbTable td{ padding:9px 10px; border-bottom:1px solid var(--line); text-align:center; }
+  #lbTable th{ color:var(--gold); background:#0f1740; }
+  #lbTable td.l{ text-align:left; }
+  #badgeBox{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; width:min(820px,96%); }
+  .badge{ background:#1b2a6b; border:1px solid var(--line); border-radius:999px; padding:9px 16px;
+    font-size:clamp(13px,1.7vw,18px); font-weight:800; }
+  #endBtns{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .bigBtn{ background:var(--gold); color:#1c1917; font-size:clamp(17px,2.2vw,22px); padding:14px 30px; min-height:52px; }
+  .linkBtn{ color:#a5b4fc; font-size:clamp(15px,1.9vw,19px); text-decoration:none; align-self:center; }
 
-  #webcamPreview {
-    position: absolute; bottom: 14px; right: 14px;
-    width: min(220px, 26%); aspect-ratio: 4/3;
-    border-radius: 14px; border: 2px solid #2a3a8a;
-    background: #000; object-fit: cover; transform: scaleX(-1);
-    pointer-events: auto;
-  }
-
-  #gameControls {
-    position: absolute; bottom: 14px; left: 14px;
-    display: flex; gap: 10px; pointer-events: auto;
-  }
-  #gameControls button {
-    background: var(--panel); color: #fff; border: 1px solid #2a3a8a;
-    padding: 10px 16px; font-size: 14px;
-  }
-  #gameControls button#btnPause { background: var(--gold); color: #1c1917; }
-  #gameControls button#btnEnd { background: #7f1d1d; color: #fecaca; }
-
-  #pauseOverlay {
-    position: absolute; inset: 0; background: rgba(6,9,22,.78);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 14px; backdrop-filter: blur(3px);
-  }
-  #pauseOverlay h2 { margin: 0; font-size: 42px; color: var(--gold); }
-  #pauseOverlay button { background: var(--gold); color: #1c1917; padding: 14px 32px; font-size: 18px; }
-
-  /* ---------- End ---------- */
-  #endScreen {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 16px; padding: 30px;
-    background: radial-gradient(circle at 50% 20%, #1b2a6b, #0b1024 65%);
-  }
-  #endScreen h2 { margin: 0; font-size: clamp(28px, 5vw, 52px); color: var(--gold); }
-  #winnerText { font-size: clamp(22px, 3.6vw, 40px); font-weight: 900; text-align: center; }
-  .end-scores {
-    display: flex; gap: 20px; width: min(520px, 92%); justify-content: center;
-  }
-  .end-score {
-    flex: 1; background: var(--panel); border: 2px solid; border-radius: 16px;
-    padding: 18px; text-align: center;
-  }
-  .end-score.p1 { border-color: var(--p1); }
-  .end-score.p2 { border-color: var(--p2); }
-  .end-score .nm { font-size: 14px; font-weight: 800; }
-  .end-score .sc { font-size: 42px; font-weight: 900; }
-  #endButtons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
-  #endButtons button { padding: 14px 28px; font-size: 16px; }
-  #btnRestart { background: var(--gold); color: #1c1917; }
-  #btnHome { background: var(--panel); color: #fff; border: 1px solid #2a3a8a; }
-
-  .loader {
-    width: 34px; height: 34px; border: 4px solid rgba(245,197,24,.2);
-    border-top-color: var(--gold); border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  /* ---------- OVERLAY (buatan sendiri, tanpa alert/confirm/prompt) ---------- */
+  .ov{ position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:22px; text-align:center; z-index:45; }
+  .solid{ z-index:50; }
+  .veil{ background:rgba(6,10,26,.78); }
+  .noHit{ pointer-events:none; }
+  .ov .inner{ pointer-events:auto; display:flex; flex-direction:column; align-items:center; gap:12px;
+    max-width:min(880px,96%); }
+  .ov h2{ margin:0; font-size:clamp(24px,4.4vw,52px); color:var(--gold); }
+  .ov p{ margin:0; font-size:clamp(15px,2vw,22px); color:#e2e8f0; line-height:1.45; }
+  .tinyBtn{ background:#1b2a6b; border:2px solid var(--line); color:#fff; padding:10px 18px;
+    font-size:clamp(14px,1.7vw,18px); min-height:46px; }
+  #calibDot{ position:fixed; width:54px; height:54px; margin:-27px 0 0 -27px; border-radius:50%;
+    border:3px dashed var(--gold); background:rgba(245,197,24,.14); z-index:46; pointer-events:none; }
+  #calibDot .ck{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:26px; }
+  .calibTarget{ position:fixed; width:58px; height:58px; margin:-29px 0 0 -29px; border-radius:50%;
+    border:3px solid #64748b; z-index:46; pointer-events:none; display:flex; align-items:center;
+    justify-content:center; font-size:22px; font-weight:900; color:#94a3b8; }
+  .calibTarget.on{ border-color:var(--gold); color:var(--gold); box-shadow:0 0 18px rgba(245,197,24,.6); }
+  .calibTarget.done{ border-color:var(--ok); color:var(--ok); background:rgba(34,197,94,.18); }
+  #resBig{ font-size:clamp(34px,7vw,92px); font-weight:900; }
+  #resPts{ font-size:clamp(22px,3.6vw,44px); font-weight:900; }
+  #resBox{ background:var(--panel); border:2px solid var(--line); border-radius:16px; padding:14px 20px;
+    font-size:clamp(15px,2vw,22px); line-height:1.5; }
+  .banner{ position:fixed; left:50%; top:36%; transform:translate(-50%,-50%); z-index:47; padding:18px 34px;
+    border-radius:20px; background:rgba(18,26,58,.92); border:3px solid var(--gold); text-align:center;
+    box-shadow:0 10px 40px rgba(0,0,0,.6); max-width:94%; pointer-events:none; }
+  .banner .ttl{ font-size:clamp(24px,4.6vw,54px); font-weight:900; color:var(--gold); }
+  .banner .desc{ font-size:clamp(16px,2.4vw,28px); font-weight:800; margin-top:6px; }
+  .banner .pts{ font-size:clamp(14px,1.9vw,20px); color:#cbd5e1; margin-top:4px; }
+  #helpPanel{ position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    background:rgba(4,7,20,.86); padding:16px; }
+  #helpPanel .doc{ width:min(880px,96%); max-height:92vh; overflow:auto; padding:20px 22px; text-align:left; }
+  #helpPanel h2{ margin:0 0 8px; color:var(--gold); font-size:clamp(21px,3.2vw,34px); }
+  #helpPanel h3{ margin:14px 0 4px; color:var(--gold); font-size:clamp(15px,2vw,21px); }
+  #helpPanel p,#helpPanel li{ font-size:clamp(13px,1.7vw,17px); line-height:1.5; color:#dbe3ff; margin:4px 0; }
+  #helpPanel ul{ margin:4px 0 0; padding-left:22px; }
+  #cdNum{ font-size:clamp(70px,18vw,240px); font-weight:900; color:var(--gold); line-height:1;
+    text-shadow:0 0 40px rgba(245,197,24,.55); }
+  .holdBtn{ background:#7c2d12; border:3px solid var(--bad); color:#fff; padding:16px 30px;
+    font-size:clamp(16px,2.2vw,24px); min-height:56px; pointer-events:auto; }
 </style>
 </head>
 <body>
 
-<!-- SETUP -->
+<canvas id="arena"></canvas>
+
+<!-- Preview webcam (dicerminkan) + titik telunjuk -->
+<div id="camBox" hidden>
+  <video id="videoEl" playsinline muted autoplay></video>
+  <div id="vidDot"></div>
+</div>
+
+<!-- ==================== LAYAR 1: PERSIAPAN ==================== -->
 <div id="setupScreen">
-  <h1>🙌 GESTURE BATTLE</h1>
-  <p>Arahkan tangan ke gelembung jawaban yang benar. Gelembung benar meletus <b>hijau</b>, salah meletus <b>merah</b>. Siapa yang paling cepat?</p>
-  <div class="setup-box">
-    <div class="setup-row">
-      <label for="p1Name">Nama Pemain Kiri</label>
-      <input id="p1Name" value="Siswa 1" maxlength="14">
+  <h1>🫧 MOTION QUEST AR</h1>
+  <p class="sub"><b>Gesture Battle</b> — Bergerak, Berpikir, Taklukkan Tantangan!</p>
+  <p class="sub muted">Jawaban turun dari atas sebagai <b>gelembung</b>. Arahkan telunjuk ke gelembung pilihanmu:
+    benar → meletus <span style="color:var(--ok)">HIJAU</span>, salah → meletus <span style="color:var(--bad)">MERAH</span>.</p>
+
+  <div class="box panel">
+    <!-- LANGKAH 1 & 2: mode -->
+    <div class="row"><span class="lbl">1. Mode Permainan</span>
+      <select id="modeSel" style="flex:1">
+        <option value="solo">SOLO (1 pemain)</option>
+        <option value="b2" selected>BATTLE 2 (2 siswa)</option>
+        <option value="b3">BATTLE 3</option>
+        <option value="b4">BATTLE 4</option>
+        <option value="team">TEAM BATTLE (2–6 tim)</option>
+      </select>
     </div>
-    <div class="setup-row">
-      <label for="p2Name">Nama Pemain Kanan</label>
-      <input id="p2Name" value="Siswa 2" maxlength="14">
+    <!-- LANGKAH 3: pengaturan tim / pemain -->
+    <div class="row" id="teamCountRow" hidden><span class="lbl">2. Jumlah Tim</span>
+      <select id="teamCountSel" style="flex:1">
+        <option value="2" selected>2 tim</option><option value="3">3 tim</option><option value="4">4 tim</option>
+        <option value="5">5 tim</option><option value="6">6 tim</option>
+      </select>
     </div>
-    <div class="setup-row">
-      <label for="gameDuration">Durasi (detik)</label>
-      <input id="gameDuration" type="number" min="30" max="300" value="90">
+    <div class="row" style="align-items:flex-start"><span class="lbl">3. Nama Pemain / Tim</span><div id="nameBox"></div></div>
+
+    <div class="row"><span class="lbl">4. Durasi Laga</span>
+      <select id="durasiSel" style="flex:1">
+        <option value="3">3 menit</option><option value="5" selected>5 menit</option>
+        <option value="8">8 menit</option><option value="12">12 menit</option>
+      </select>
+    </div>
+    <div class="row"><span class="lbl">5. Jumlah Soal</span>
+      <select id="countSel" style="flex:1">
+        <option value="8">8 soal</option><option value="12" selected>12 soal</option>
+        <option value="16">16 soal</option><option value="20">20 soal</option>
+      </select>
+    </div>
+    <div class="row"><span class="lbl">6. Waktu / Soal</span>
+      <select id="timeSel" style="flex:1">
+        <option value="10">10 detik</option><option value="15" selected>15 detik</option>
+        <option value="20">20 detik</option><option value="30">30 detik</option>
+      </select>
+    </div>
+    <div class="row"><span class="lbl">7. Tingkat Kesulitan</span>
+      <select id="diffSel" style="flex:1">
+        <option value="mudah">Mudah (bobot ×1)</option>
+        <option value="sedang" selected>Sedang (bobot ×1,5)</option>
+        <option value="sulit">Sulit (bobot ×2)</option>
+      </select>
     </div>
   </div>
-  <button id="btnStart">▶ MULAI & AKTIFKAN KAMERA</button>
-  <div class="cam-hint">Game memerlukan akses kamera untuk mendeteksi posisi tangan. Data video hanya diproses di perangkat ini.</div>
-  <div id="statusMsg"></div>
+
+  <div class="box panel">
+    <div class="row"><span class="lbl">Kamera &amp; Gesture</span><span id="camStatus">Menyiapkan kamera…</span></div>
+    <div class="btnRow">
+      <button class="btn" id="btnCam">🎥 Ganti Kamera</button>
+      <button class="btn" id="btnMirror">🪞 Cermin Video: ON</button>
+      <button class="btn" id="btnHandTest">✋ Uji Tangan</button>
+      <button class="btn" id="btnBodyTest">🧍 Uji Tubuh</button>
+    </div>
+    <p class="muted" style="margin:0;font-size:14px">Kalibrasi kamera otomatis diminta sebelum bermain. Bila kamera
+      ditolak, game pindah ke <b>mode sentuh</b> dan tetap bisa dimainkan penuh.</p>
+  </div>
+
+  <!-- LANGKAH 4 & 5 -->
+  <button id="btnStart">▶ MULAI</button>
+  <button class="btn" id="btnHelpSetup">📖 Cara Bermain</button>
+  <div id="srcName">Memuat soal…</div>
 </div>
 
-<!-- GAME -->
+<!-- ==================== LAYAR 2: BERMAIN ==================== -->
 <div id="gameScreen" hidden>
-  <canvas id="gameCanvas"></canvas>
-
-  <div id="hudTop">
-    <div class="score-box p1">
-      <div class="name" id="hudP1Name">Siswa 1</div>
-      <div class="score" id="hudP1Score">0</div>
+  <div id="modeChip" class="chip">Mode: Menunjuk</div>
+  <!-- Skor tiap pemain: rata kiri–kanan di baris atas (P1 paling kiri) -->
+  <div id="scoreBar"></div>
+  <div id="qHead">
+    <div id="qMeta">
+      <span class="chip" id="chipSoal">Soal 1/12</span>
+      <span class="chip" id="chipLevel">Level 1</span>
+      <span class="chip" id="chipTimer">⏱ 15s</span>
+      <span class="chip" id="chipBoss" hidden></span>
+      <span class="chip" id="chipMatch">Sisa laga 05:00</span>
     </div>
-    <div class="score-box p2">
-      <div class="name" id="hudP2Name">Siswa 2</div>
-      <div class="score" id="hudP2Score">0</div>
-    </div>
+    <div id="qText"></div>
   </div>
-
-  <div id="questionBar">
-    <div id="questionText">Memuat soal…</div>
-    <div id="questionMeta"></div>
-  </div>
-
-  <div id="timerBox">⏱ <span id="timerValue">90</span></div>
-
-  <video id="webcamPreview" autoplay playsinline muted></video>
-
-  <div id="gameControls">
-    <button id="btnPause">⏸ Jeda</button>
-    <button id="btnEnd">🏁 Selesai</button>
-    <a href="index.php"><button>🏠</button></a>
-  </div>
-
-  <div id="pauseOverlay" hidden>
-    <h2>⏸ JEDA</h2>
-    <button id="btnResume">▶ Lanjutkan</button>
+  <div id="zoneBar"></div>
+  <!-- Kontrol guru -->
+  <div id="teacherBar">
+    <button class="btn" id="btnPause">⏸ Jeda</button>
+    <button class="btn" id="btnFinish">🏁 Selesai</button>
+    <a class="btn" href="index.php" style="text-decoration:none;color:#fff">🏠</a>
+    <button class="btn" id="btnHelpGame">📖</button>
+    <button class="btn" id="btnSkip" hidden>➡</button>
   </div>
 </div>
 
-<!-- END -->
+<!-- ==================== LAYAR 3: HASIL ==================== -->
 <div id="endScreen" hidden>
-  <div style="font-size:80px">🏆</div>
-  <h2>HASIL AKHIR</h2>
-  <div id="winnerText"></div>
-  <div class="end-scores">
-    <div class="end-score p1">
-      <div class="nm" id="endP1Name">Siswa 1</div>
-      <div class="sc" id="endP1Score">0</div>
-    </div>
-    <div class="end-score p2">
-      <div class="nm" id="endP2Name">Siswa 2</div>
-      <div class="sc" id="endP2Score">0</div>
+  <div style="font-size:clamp(56px,9vw,100px);line-height:1">🏆</div>
+  <h2 id="endTitle">HASIL AKHIR</h2>
+  <div id="winnerBox"></div>
+  <div id="podium"></div>
+  <h3 style="margin:6px 0 0;color:var(--gold);font-size:clamp(17px,2.4vw,26px)">📋 Leaderboard</h3>
+  <table id="lbTable" class="panel"><thead>
+    <tr><th>No</th><th>Tim</th><th>Skor</th><th>Benar</th><th>Salah</th></tr>
+  </thead><tbody id="lbBody"></tbody></table>
+  <h3 style="margin:6px 0 0;color:var(--gold);font-size:clamp(17px,2.4vw,26px)">🎖 Penghargaan Tambahan</h3>
+  <div id="badgeBox"></div>
+  <div id="endBtns">
+    <button class="bigBtn" id="btnDownload">⬇ UNDUH HASIL BALAP</button>
+    <button class="bigBtn" id="btnAgain">🔁 Main Lagi</button>
+    <a class="linkBtn" href="index.php">🏠 Beranda</a>
+  </div>
+</div>
+
+<!-- ============ OVERLAY: KALIBRASI KAMERA (langkah 4) ============ -->
+<div id="calibOverlay" class="ov veil" hidden>
+  <div class="inner">
+    <h2>🎯 KALIBRASI KAMERA</h2>
+    <p id="calibHint">Sentuh titik <b>1</b> (kiri atas) dengan ujung telunjuk, lalu <b>tahan ±1 detik</b>.</p>
+    <p id="calibStatus" class="muted">Deteksi tangan: menunggu…</p>
+    <div class="btnRow" style="justify-content:center">
+      <button class="tinyBtn" id="btnCalibSkip">Lewati kalibrasi</button>
+      <button class="tinyBtn" id="btnCalibAgain">🔄 Ulangi kalibrasi</button>
     </div>
   </div>
-  <div id="endButtons">
-    <button id="btnRestart">🔁 Main Lagi</button>
-    <a href="index.php"><button id="btnHome">🏠 Beranda</button></a>
+</div>
+<div id="calibDot" hidden><span class="ck"></span></div>
+<div class="calibTarget" id="ct0" hidden>1</div>
+<div class="calibTarget" id="ct1" hidden>2</div>
+<div class="calibTarget" id="ct2" hidden>3</div>
+<div class="calibTarget" id="ct3" hidden>4</div>
+
+<!-- ============ OVERLAY: COUNTDOWN 3-2-1 (langkah 5) ============ -->
+<div id="countOverlay" class="ov veil solid" hidden>
+  <div id="cdNum">3</div>
+  <p class="muted">Siapkan tangan di depan kamera…</p>
+</div>
+
+<!-- ============ OVERLAY: HASIL JAWABAN (langkah 8/9 + TIME'S UP) ============ -->
+<div id="resultOverlay" class="ov noHit" hidden>
+  <div id="resBig">✅ BENAR!</div>
+  <div id="resPts">+100 POIN</div>
+  <div id="resBox" class="panel"></div>
+</div>
+
+<!-- ============ OVERLAY: MENANG / KALAH FINAL BOSS (langkah 12) ============ -->
+<div id="bossWinOverlay" class="ov veil solid" hidden>
+  <div style="font-size:clamp(50px,10vw,120px);line-height:1">👑</div>
+  <h2 id="bossWinTitle">FINAL BOSS KALAH!</h2>
+  <p id="bossWinText">Bonus besar untuk semua pemain.</p>
+</div>
+
+<!-- ============ BANNER: TANTANGAN AR / POWER MOVE ============ -->
+<div id="challengeBanner" class="banner" hidden>
+  <div class="ttl" id="cbTtl">WALL</div>
+  <div class="desc" id="cbDesc">Angkat kedua tangan!</div>
+  <div class="pts" id="cbPts">Batas 5 detik · +50 poin</div>
+</div>
+
+<!-- ============ OVERLAY: MODE SENTUH TANPA KAMERA ============ -->
+<div id="touchFallback" class="ov veil" hidden>
+  <div class="inner">
+    <h2>📱 Kamera Tidak Tersedia</h2>
+    <p><b>Kamera tidak tersedia — pakai mode sentuh.</b><br>
+      Gelembung jawaban tetap bisa <b>disentuh / diklik</b> untuk memilih. Game berjalan penuh.</p>
+    <button class="bigBtn" id="btnOkTouch">✔ Lanjut Mode Sentuh</button>
+  </div>
+</div>
+
+<!-- ============ OVERLAY: UJI TANGAN (langkah 15 / fitur) ============ -->
+<div id="handTestOverlay" class="ov veil" hidden>
+  <div class="inner">
+    <h2>✋ UJI TANGAN</h2>
+    <p>Arahkan telunjuk ke gelembung percobaan. Tahan sampai ring penuh (0,6 detik) — gelembung akan meletus.</p>
+    <p id="htStatus" class="muted">Belum ada tangan terdeteksi.</p>
+    <button class="bigBtn" id="btnCloseHT">✔ Selesai Uji</button>
+  </div>
+</div>
+
+<!-- ============ OVERLAY: UJI TUBUH (tidak dipalsukan) ============ -->
+<div id="bodyOverlay" class="ov veil solid" hidden>
+  <div class="inner">
+    <h2>🧍 UJI TUBUH</h2>
+    <p>Mode deteksi <b>tubuh penuh</b> belum tersedia pada versi ini. Gerakan besar tetap terbaca lewat
+      <b>telunjuk</b> — tantangan AR (WALL / DODGE / JUMP / POWER MOVE) menggunakan posisi telunjuk.</p>
+    <button class="bigBtn" id="btnOkBody">✔ Mengerti</button>
+  </div>
+</div>
+
+<!-- ============ OVERLAY: JEDA ============ -->
+<div id="pauseOverlay" class="ov veil solid" hidden>
+  <div class="inner">
+    <h2>⏸ PERMAINAN DIJEDA</h2>
+    <p>Semua timer berhenti. Lanjutkan bila siap.</p>
+    <div class="btnRow" style="justify-content:center">
+      <button class="bigBtn" id="btnResume">▶ Lanjutkan</button>
+      <button class="tinyBtn" id="btnFinishPause">🏁 Selesai Saja</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PANEL: 📖 CARA BERMAIN + PENGATURAN & FITUR (langkah 15) ============ -->
+<div id="helpPanel" hidden>
+  <div class="doc panel">
+    <h2>📖 Cara Bermain &amp; Daftar Fitur</h2>
+    <h3>Alur 16 langkah</h3>
+    <ul>
+      <li><b>1–3 Persiapan:</b> pilih mode, atur jumlah tim &amp; nama, durasi, jumlah soal, waktu/soal, kesulitan.</li>
+      <li><b>4 Kalibrasi kamera:</b> tahan telunjuk di 4 titik sudut (±1 detik tiap titik). Bisa dilewati / diulang.</li>
+      <li><b>5 Mulai:</b> countdown <b>3 2 1 MOTION QUEST!</b> lalu soal pertama muncul.</li>
+      <li><b>6 Arena AR:</b> header <b>Soal X/N · Level Y · ⏱ detik</b>; 4 gelembung jawaban A/B/C/D <b>turun dari atas</b> dengan wobble; bar skor tim di bawah arena.</li>
+      <li><b>7 Gesture:</b> <b>Mode: Menunjuk</b> — arahkan telunjuk (hover). Target ber-sorotan + tulisan <b>TARGET TERDETEKSI!</b> + ring progres dwell 0,6 detik, lalu jawaban terkunci (cooldown 700 ms).</li>
+      <li><b>8 Benar:</b> gelembung <b>meletus HIJAU</b> + partikel, <b>✅ CORRECT!</b>, poin level, <b>SPEED BONUS</b> (maks +50), <b>COMBO x2, x3, …</b></li>
+      <li><b>9 Salah:</b> gelembung <b>meletus MERAH</b>, <b>❌ WRONG! −20 POIN</b>, ditampilkan kunci jawaban + penjelasan.</li>
+      <li><b>10 Tantangan AR Obstacle:</b> tiap <b>5 soal</b> — WALL / DODGE / JUMP, batas 5 detik, berhasil <b>+50</b> &amp; bintang ⭐ untuk yang berhasil.</li>
+      <li><b>11 Power Move:</b> 3 benar berturut-turut → <b>⚡ POWER MOVE!</b> angkat kedua tangan 1 detik → <b>+100 POIN</b>.</li>
+      <li><b>12 Final Boss:</b> setelah 80% soal → <b>👹 FINAL BOSS — PENJAGA ILMU</b> (HP 3 hati). 3 benar = kalah; salah = waktu boss −5 detik. Menang → bonus besar + konfeti.</li>
+      <li><b>13–14 Hasil:</b> Leaderboard &amp; podium juara 1/2/3 + Penghargaan Tambahan.</li>
+      <li><b>15–16:</b> panel pengaturan/fitur ini, lalu tombol <b>🔁 Main Lagi</b> &amp; <b>🏠 Beranda</b>.</li>
+    </ul>
+    <h3>5 Level &amp; bobot poin</h3>
+    <ul>
+      <li>Pemula (1) = 100 · Cerdas (2) = 120 · Ahli (3) = 150 · Master (4) = 180 · Legenda (5) = 200.</li>
+      <li>Naik 1 level tiap 3 jawaban benar berturut-turut; turun 1 level saat salah. Difficulty memberi pengali ×1 / ×1,5 / ×2.</li>
+      <li>Salah = <b>−20</b> poin. Habis waktu = <b>⏰ TIME'S UP!</b> tanpa poin (gelembung benar meletus hijau sebagai penanda).</li>
+    </ul>
+    <h3>Mode input</h3>
+    <ul>
+      <li><b>Kamera + gesture</b> — MediaPipe <b>tasks-vision HandLandmarker</b> (dimuat dari <code>game/vendor/</code>
+        bila sudah di-self-host, CDN jsdelivr hanya cadangan). Telunjuk = landmark 8, preview video dicerminkan.</li>
+      <li><b>Sentuh / klik</b> — bila kamera ditolak, atau saat kamera aktif pun gelembung boleh disentuh langsung.</li>
+    </ul>
+    <h3>Bank soal &amp; hasil</h3>
+    <ul>
+      <li>Soal diambil dari API bank soal portal (<code>/api/questions.php?game=gesture-battle</code>); bila API kosong/error dipakai <b>soal bawaan</b> Informatika / Berpikir Komputasional.</li>
+      <li><b>⬇ UNDUH HASIL BALAP</b> menyimpan rekap CSV: peringkat, nama, skor, benar, salah, combo tertinggi, waktu rata-rata.</li>
+      <li>Fitur bonus: <b>Mystery Gesture ❓</b> (gelembung emas acak, poin kejutan) di samping Power Move &amp; Final Boss.</li>
+    </ul>
+    <div class="btnRow" style="justify-content:center;margin-top:14px">
+      <button class="bigBtn" id="btnCloseHelp">✖ Tutup</button>
+      <button class="tinyBtn" id="btnSkipQ" hidden>➡ Lewati Soal Ini</button>
+    </div>
   </div>
 </div>
 
@@ -242,303 +417,698 @@
 (function () {
   'use strict';
 
-  // ---------- DOM ----------
-  const $ = id => document.getElementById(id);
-  const setupScreen = $('setupScreen'), gameScreen = $('gameScreen'), endScreen = $('endScreen');
-  const btnStart = $('btnStart'), statusMsg = $('statusMsg');
-  const canvas = $('gameCanvas'), ctx = canvas.getContext('2d');
-  const videoEl = $('webcamPreview');
-  const hudP1Name = $('hudP1Name'), hudP2Name = $('hudP2Name');
-  const hudP1Score = $('hudP1Score'), hudP2Score = $('hudP2Score');
-  const questionText = $('questionText'), questionMeta = $('questionMeta');
-  const timerBox = $('timerBox'), timerValue = $('timerValue');
-  const pauseOverlay = $('pauseOverlay');
-  const winnerText = $('winnerText');
+  // ---------- BAGIAN 1: UTILITAS & ELEMEN ----------
+  const $ = (id) => document.getElementById(id);
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  const clamp = (v, a, b) => (v < a ? a : (v > b ? b : v));
+  const rand = (a, b) => a + Math.random() * (b - a);
+  function two(n) { return (n < 10 ? '0' : '') + n; }
+  function mmss(sec) { const s = Math.max(0, Math.ceil(sec)); return two(Math.floor(s / 60)) + ':' + two(s % 60); }
 
-  // ---------- STATE ----------
   const params = new URLSearchParams(location.search);
-  const gameSlug = params.get('game') || 'gesture-battle';
+  const gameSlug = params.get('game') || '';
 
-  let p1Name = 'Siswa 1', p2Name = 'Siswa 2';
-  let durationSec = 90;
-  let score1 = 0, score2 = 0;
-  let timeLeft = 90, lastTime = 0, timerInterval = null, rafId = null;
-  let paused = false, gameEnded = false;
+  const cv = $('arena');
+  const ctx = cv.getContext('2d');
+  let W = 0, H = 0;
 
-  let questions = [];
-  let qIndex = 0;
-  let bubbles = [];
-  let particles = [];
-  let nextBubbleAt = 0;
-  let questionDeadline = 0;
+  const setupScreen = $('setupScreen'), gameScreen = $('gameScreen'), endScreen = $('endScreen');
+  const videoEl = $('videoEl'), camBox = $('camBox'), vidDot = $('vidDot');
 
-  const hands = [];
-  let camera = null;
-  let videoWidth = 0, videoHeight = 0;
-  let cooldown = { 1: 0, 2: 0 };
+  // Semua setTimeout dikelola agar tidak ada timer bocor saat ganti layar
+  const timerIds = [];
+  function later(fn, ms) { const id = setTimeout(fn, ms); timerIds.push(id); return id; }
+  function clearAllTimers() { while (timerIds.length) { clearTimeout(timerIds.pop()); } }
 
-  // ---------- FALLBACK SOAL ----------
+  // ---------- BAGIAN 2: BANK SOAL (FALLBACK + API) ----------
+  // FALLBACK: 10 soal pilihan ganda 4 opsi (Informatika / Berpikir Komputasional SMP)
   const FALLBACK = [
-    { pertanyaan: 'Manakah yang termasuk langkah berpikir komputasional?', opsi_a: 'Dekomposisi', opsi_b: 'Memasak', opsi_c: 'Berenang', opsi_d: 'Tidur', kunci: 'A' },
-    { pertanyaan: 'Langkah memecah masalah besar menjadi bagian kecil disebut?', opsi_a: 'Abstraksi', opsi_b: 'Dekomposisi', opsi_c: 'Algoritma', opsi_d: 'Pola', kunci: 'B' },
-    { pertanyaan: 'Serangkaian langkah terstruktur untuk menyelesaikan masalah disebut?', opsi_a: 'Pola', opsi_b: 'Abstraksi', opsi_c: 'Algoritma', opsi_d: 'Dekomposisi', kunci: 'C' },
-    { pertanyaan: 'Mengidentifikasi kesamaan pola dalam data adalah?', opsi_a: 'Abstraksi', opsi_b: 'Pengenalan Pola', opsi_c: 'Algoritma', opsi_d: 'Dekomposisi', kunci: 'B' },
-    { pertanyaan: 'Menyederhanakan masalah dengan fokus pada informasi penting adalah?', opsi_a: 'Dekomposisi', opsi_b: 'Pengenalan Pola', opsi_c: 'Abstraksi', opsi_d: 'Algoritma', kunci: 'C' },
-    { pertanyaan: 'Bagian pertama membuat nasi goreng?', opsi_a: 'Menyajikan', opsi_b: 'Menumis bumbu', opsi_c: 'Mencuci piring', opsi_d: 'Makan', kunci: 'B' },
-    { pertanyaan: 'Aktivitas yang membutuhkan urutan langkah?', opsi_a: 'Tidur', opsi_b: 'Mengendarai sepeda', opsi_c: 'Bermalas-malasan', opsi_d: 'Melihat langit', kunci: 'B' },
-    { pertanyaan: 'Hewan berikut yang memiliki belalai panjang?', opsi_a: 'Kucing', opsi_b: 'Gajah', opsi_c: 'Kupu-kupu', opsi_d: 'Ikan', kunci: 'B' },
-    { pertanyaan: 'Profesi yang memakai stetoskop?', opsi_a: 'Koki', opsi_b: 'Dokter', opsi_c: 'Pilot', opsi_d: 'Petani', kunci: 'B' },
-    { pertanyaan: 'Profesi yang memasak makanan di restoran?', opsi_a: 'Dokter', opsi_b: 'Guru', opsi_c: 'Koki', opsi_d: 'Sopir', kunci: 'C' }
+    { q: 'Apa nama perangkat yang berfungsi menampilkan proses dan hasil pengolahan data?',
+      opts: ['Monitor', 'Keyboard', 'Mouse', 'Printer'], answer: 'Monitor',
+      explain: 'Monitor adalah perangkat keluaran (output) yang menampilkan hasil pengolahan data.' },
+    { q: 'Dalam berpikir komputasional, mengurai masalah besar menjadi bagian-bagian kecil disebut…',
+      opts: ['Dekomposisi', 'Abstraksi', 'Evaluasi', 'Iterasi'], answer: 'Dekomposisi',
+      explain: 'Dekomposisi = memecah masalah rumit menjadi sub-masalah yang lebih mudah dipecahkan.' },
+    { q: 'Urutan langkah penyelesaian masalah yang runtut dan logis disebut…',
+      opts: ['Algoritma', 'Basis data', 'Jaringan', 'Antarmuka'], answer: 'Algoritma',
+      explain: 'Algoritma adalah langkah-langkah terurut untuk menyelesaikan suatu masalah.' },
+    { q: 'Manakah yang BUKAN perangkat keras komputer?',
+      opts: ['Sistem operasi', 'Prosesor', 'RAM', 'Hard disk'], answer: 'Sistem operasi',
+      explain: 'Sistem operasi adalah perangkat lunak, bukan perangkat keras.' },
+    { q: 'Langkah pertama yang paling benar saat menemui soal cerita yang rumit adalah…',
+      opts: ['Membaca dan memahami soalnya', 'Langsung menghitung', 'Meneko jawaban', 'Menyerah'], answer: 'Membaca dan memahami soalnya',
+      explain: 'Memahami masalah (definisi) adalah tahap awal penyelesaian masalah dalam berpikir komputasional.' },
+    { q: 'Pencarian data berurutan dari elemen pertama sampai terakhir dinamakan…',
+      opts: ['Searching linear', 'Sorting bubble', 'Looping', 'Function'], answer: 'Searching linear',
+      explain: 'Pencarian linear mengecek data satu per satu dari awal; cocok untuk data yang belum terurut.' },
+    { q: 'Abstraksi dalam berpikir komputasional berarti…',
+      opts: ['Fokus pada info penting, mengabaikan yang tidak perlu', 'Menyalin semua data',
+        'Menghapus file', 'Menggambar dengan pensil'], answer: 'Fokus pada info penting, mengabaikan yang tidak perlu',
+      explain: 'Abstraksi menyaring detail penting dan membuang detail yang tidak relevan.' },
+    { q: 'Sinyal digital pada komputer paling umum memakai bilangan basis…',
+      opts: ['2 (biner)', '8 (oktal)', '10 (desimal)', '16 (heksa)'], answer: '2 (biner)',
+      explain: 'Perangkat digital hanya mengenal dua keadaan: 0 (tidak ada arus) dan 1 (ada arus).' },
+    { q: 'Perulangan (loop) yang jumlahnya sudah diketahui sejak awal biasanya memakai…',
+      opts: ['For', 'While', 'Repeat tanpa syarat', 'If'], answer: 'For',
+      explain: 'Perulangan for dipakai ketika banyak iterasi sudah diketahui; while untuk kondisi yang belum pasti.' },
+    { q: 'Jaringan komputer dengan cakupan terkecil (satu ruangan) disebut…',
+      opts: ['LAN', 'WAN', 'Internet', 'MAN'], answer: 'LAN',
+      explain: 'LAN (Local Area Network) mencakup area kecil seperti satu ruang atau satu gedung.' }
   ];
 
-  // ---------- API SOAL ----------
+  let questions = FALLBACK.slice();   // bank aktif (dipakai untuk menyusun set main)
+  let srcLabel = '';
+
+  function setSrc(t) { srcLabel = t; $('srcName').textContent = t; }
+
+  // Normalisasi pilihan ganda dari API: opsi unik + kunci pasti ada di daftar
+  function normPG(s) {
+    const clean = (v) => String(v || '').trim().replace(/\s+/g, ' ');
+    const raw = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d];
+    const opts = [];
+    raw.forEach((v) => { const t = clean(v); if (t && opts.indexOf(t) < 0) opts.push(t); });
+    const kIdx = clamp(String(s.kunci || 'A').toUpperCase().charCodeAt(0) - 65, 0, 3);
+    let ans = clean(raw[kIdx]);
+    if (!ans) ans = opts[0] || '';
+    if (opts.length < 2 || !ans) return null;
+    if (opts.indexOf(ans) < 0) opts[0] = ans;      // kunci wajib ada di daftar opsi
+    const qText = clean(s.pertanyaan);
+    if (!qText) return null;
+    return { q: qText, opts: opts, answer: ans, explain: clean(s.penjelasan) };
+  }
+
   async function loadQuestions() {
+    if (!gameSlug) { setSrc('Soal bawaan (' + questions.length + ')'); return; }
     try {
       const res = await fetch('/api/questions.php?game=' + encodeURIComponent(gameSlug), { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const list = (data.soal || []).map(normalizeQuestion).filter(q => q);
-      if (list.length) {
-        questions = shuffle(list);
-        questionMeta.textContent = 'Bank soal: ' + ((data.game && data.game.nama) || gameSlug);
-        return;
+      const list = (data.soal || []).map(normPG).filter(Boolean);
+      if (list.length >= 2) {
+        questions = list;
+        setSrc(((data.game && data.game.nama) || gameSlug) + ' · ' + questions.length + ' soal');
+      } else {
+        setSrc('⚠️ Soal bawaan (' + questions.length + ') — API tak punya soal 4 opsi');
       }
     } catch (e) {
-      console.warn('Gagal memuat soal API:', e);
+      setSrc('⚠️ Soal bawaan (' + questions.length + ') — API tak tersedia');
     }
-    questions = shuffle(FALLBACK.map(normalizeQuestion).filter(q => q));
-    questionMeta.textContent = 'Soal bawaan (demo)';
   }
 
-  function normalizeQuestion(s) {
-    const opsi = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d].filter((x, i, a) => x && a.indexOf(x) === i);
-    if (opsi.length < 2) return null;
-    const kunciIdx = Math.max(0, (s.kunci || 'A').toUpperCase().charCodeAt(0) - 65);
-    const kunci = opsi[Math.min(kunciIdx, opsi.length - 1)] || opsi[0];
+  // ---------- BAGIAN 3: KONFIGURASI & STATE PERMAINAN ----------
+  const PLAYER_COLORS = ['#3b82f6', '#f97316', '#22c55e', '#a855f7'];
+  const TEAM_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ec4899'];
+  const LEVEL_PTS = [100, 120, 150, 180, 200];
+  const LEVEL_NAME = ['Pemula', 'Cerdas', 'Ahli', 'Master', 'Legenda'];
+  const DIFF_F = { mudah: 1, sedang: 1.5, sulit: 2 };
+  const DWELL_SEC = 0.6;          // dwell time选中 target
+  const COOLDOWN_SEC = 0.7;       // jeda setelah tiap pilihan
+  const WRONG_PENALTY = 20;
+
+  let players = [];               // pemain/tim aktif
+  let modeKey = 'b2', isTeam = false;
+  let matchLeftSec = 300, ansSecTotal = 15, targetCount = 12, diffF = 1.5;
+  let setList = [];               // array {q,kind}
+  let qIdx = 0, bossAt = 10, sinceObstacle = 0;
+  let phase = 'idle';             // idle|countdown|question|feedback|obstacle|power|boss|handtest|ended
+  let paused = false, running = false, bossDone = false, bossWin = false;
+  let powerUses = 0, pendingPower = -1, pendingMystery = false;
+  let rafId = 0, lastTs = 0;
+
+  const bubbles = [], particles = [];
+  let cursors = [];               // posisi kursor per pemain
+  let cooldowns = [];             // cooldown pilihan per pemain
+  let hoverInfo = [];             // {b, t} progres dwell per pemain
+
+  function newPlayer(i, name, color) {
+    return { idx: i, name: name, color: color, score: 0, correct: 0, wrong: 0, combo: 0, bestCombo: 0,
+      streak: 0, level: 1, levelStreak: 0, timeSum: 0, timeCnt: 0, stars: 0, answered: 0 };
+  }
+
+  // LANGKAH 1-3: susun daftar pemain/tim dari form persiapan
+  function playerCount() {
+    const k = $('modeSel').value;
+    const nMap = { solo: 1, b2: 2, b3: 3, b4: 4, team: parseInt($('teamCountSel').value, 10) || 2 };
+    const n = nMap[k] || 2;                       // penjaga: mode tak dikenal → pakai 2 pemain
+    return Math.max(1, Math.min(6, n));
+  }
+
+  function readConfig() {
+    modeKey = $('modeSel').value;
+    isTeam = (modeKey === 'team');
+    const n = playerCount();
+    players = [];
+    for (let i = 0; i < n; i++) {
+      const inp = $('nm' + i);
+      const def = (isTeam ? 'Tim ' : 'Pemain ') + (i + 1);
+      const nm = clampLen((inp && inp.value.trim()) || def, 16);
+      players.push(newPlayer(i, nm, (isTeam ? TEAM_COLORS : PLAYER_COLORS)[i % (isTeam ? TEAM_COLORS.length : PLAYER_COLORS.length)]));
+    }
+    matchLeftSec = (parseInt($('durasiSel').value, 10) || 5) * 60;
+    targetCount = parseInt($('countSel').value, 10) || 12;
+    ansSecTotal = parseInt($('timeSel').value, 10) || 15;
+    diffF = DIFF_F[$('diffSel').value] || 1;
+    cursors = players.map(() => ({ x: -999, y: -999, on: false, src: '' }));
+    cooldowns = players.map(() => 0);
+    hoverInfo = players.map(() => ({ b: null, t: 0 }));
+  }
+
+  function clampLen(s, n) { s = String(s); return s.length > n ? s.slice(0, n) : s; }
+
+  function renderNameInputs() {
+    const n = playerCount();
+    const isT = $('modeSel').value === 'team';
+    $('teamCountRow').hidden = !isT;
+    const box = $('nameBox');
+    box.innerHTML = '';
+    const cols = isT ? TEAM_COLORS : PLAYER_COLORS;
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement('div');
+      d.className = 'nameItem';
+      const dot = document.createElement('span');
+      dot.className = 'dot'; dot.style.background = cols[i % cols.length];
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.id = 'nm' + i; inp.maxLength = 16;
+      inp.value = (isT ? 'Tim ' : 'Pemain ') + (i + 1);
+      d.appendChild(dot); d.appendChild(inp);
+      box.appendChild(d);
+    }
+  }
+
+  // ---------- BAGIAN 4: KAMERA + MEDIAPIPE tasks-vision HandLandmarker ----------
+  // Urutan muat: SELF-HOST (game/vendor/) dulu, CDN jsdelivr hanya cadangan.
+  const MP_VERSION = '0.10.3';
+  let WASM_URL = 'vendor/wasm';
+  let MODEL_URL = 'vendor/hand_landmarker.task';
+  let visionLib = null, libSumber = 'lokal';
+
+  async function ensureVisionLib() {
+    if (visionLib) return visionLib;
+    try {
+      visionLib = await import('./vendor/vision_bundle.js');   // self-host
+      libSumber = 'lokal';
+    } catch (e) {
+      WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VERSION + '/wasm';
+      MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+      visionLib = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VERSION);
+      libSumber = 'CDN';
+    }
+    return visionLib;
+  }
+
+  let videoStream = null, handLandmarker = null, lnNumHands = 0, lastVideoTime = -1;
+  let detRaf = 0, handsNow = [], handsSeenAt = 0;
+  let camReady = false, touchOnly = true, camStarting = false;
+  let mirrorOn = true, camDeviceIdx = 0, camDevices = [];
+  let calib = null;                    // bounding box kalibrasi {x0,x1,y0,y1}
+
+  function camStatus(t, ok) { $('camStatus').textContent = t; $('camStatus').style.color = ok === false ? '#f87171' : '#a5b4fc'; }
+
+  // Ambil stream kamera sendiri (tidak memakai class Camera dari camera_utils)
+  async function startCamera() {
+    if (camReady || camStarting) return;
+    camStarting = true;
+    camStatus('🎥 Meminta izin kamera…', true);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia tidak tersedia');
+      const attempts = [];
+      if (camDevices.length && camDevices[camDeviceIdx]) attempts.push({ audio: false, video: { deviceId: { exact: camDevices[camDeviceIdx].deviceId }, width: { ideal: 640 }, height: { ideal: 480 } } });
+      attempts.push({ audio: false, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } });
+      attempts.push({ audio: false, video: true });
+      let stream = null;
+      for (let i = 0; i < attempts.length; i++) {
+        try { stream = await navigator.mediaDevices.getUserMedia(attempts[i]); break; } catch (e) { /* coba kandidat berikutnya */ }
+      }
+      if (!stream) throw new Error('Kamera ditolak / tidak ada');
+      videoStream = stream;
+      videoEl.srcObject = stream;
+      try { await videoEl.play(); } catch (e) { /* autoplay bisa gagal, tidak fatal */ }
+      camBox.hidden = false;
+      await loadLandmarker(Math.max(1, Math.min(4, players.length || 2)));
+      touchOnly = false; camReady = true;
+      camStatus('🎥 Kamera aktif (' + libSumber + ' MediaPipe) — kalibrasi dijalankan sebelum bermain.', true);
+      $('modeChip').textContent = '🫵 Mode: Menunjuk (dwell 0,6 detik)';
+      startDetectLoop();
+    } catch (e) {
+      touchOnly = true; camReady = false;
+      camStatus('⚠️ Kamera tidak tersedia — pakai mode sentuh.', false);
+      $('modeChip').textContent = '👆 Mode: Sentuh / Klik';
+      showTouchHint();
+    } finally {
+      camStarting = false;
+    }
+  }
+
+  // Buat / buat ulang HandLandmarker sesuai jumlah pemain (maks 4 tangan)
+  async function loadLandmarker(nHands) {
+    nHands = Math.max(1, Math.min(4, nHands | 0));
+    if (handLandmarker && lnNumHands === nHands) return;
+    const lib = await ensureVisionLib();
+    if (!lib || !lib.FilesetResolver || !lib.HandLandmarker) throw new Error('Pustaka MediaPipe tidak termuat');
+    const { FilesetResolver, HandLandmarker } = lib;
+    camStatus('🧠 Memuat model HandLandmarker (' + libSumber + ')…', true);
+    const vision = await FilesetResolver.forVisionTasks(WASM_URL);
+    const opts = {
+      baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
+      runningMode: 'VIDEO', numHands: nHands,
+      minHandDetectionConfidence: 0.6, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5
+    };
+    try { handLandmarker = await HandLandmarker.createFromOptions(vision, opts); }
+    catch (e) { opts.baseOptions.delegate = 'CPU'; handLandmarker = await HandLandmarker.createFromOptions(vision, opts); }
+    lnNumHands = nHands; lastVideoTime = -1;
+  }
+
+  function stopDetectLoop() { if (detRaf) cancelAnimationFrame(detRaf); detRaf = 0; }
+  function startDetectLoop() { stopDetectLoop(); const t = () => { detRaf = requestAnimationFrame(t); detectOnce(); }; detRaf = requestAnimationFrame(t); }
+
+  function dispX(rawX) { return mirrorOn ? (1 - rawX) : rawX; }   // preview dicerminkan → x layar = 1 - lm.x
+
+  // Deteksi per frame memakai requestAnimationFrame sendiri
+  function detectOnce() {
+    if (!handLandmarker || videoEl.readyState < 2) return;
+    if (videoEl.currentTime === lastVideoTime) return;           // jangan proses frame yang sama dua kali
+    lastVideoTime = videoEl.currentTime;
+    try {
+      const res = handLandmarker.detectForVideo(videoEl, performance.now());
+      handsNow = [];
+      const lms = res.landmarks || [];
+      for (let i = 0; i < lms.length; i++) {
+        const tip = lms[i] && lms[i][8];                          // ujung telunjuk = landmark 8
+        if (!tip) continue;
+        handsNow.push({ x: dispX(tip.x), y: tip.y, label: ((res.handedness && res.handedness[i] && res.handedness[i][0]) || {}).label || '' });
+      }
+      if (handsNow.length) handsSeenAt = performance.now();
+      updateHandCursors();
+    } catch (e) { /* frame bermasalah: lewati */ }
+  }
+
+  // Petakan koordinat tangan → piksel kanvas (memakai bounding box kalibrasi)
+  function mapHand(nx, ny) {
+    let fx = nx, fy = ny;
+    if (calib) {
+      fx = (nx - calib.x0) / Math.max(0.05, calib.x1 - calib.x0);
+      fy = (ny - calib.y0) / Math.max(0.05, calib.y1 - calib.y0);
+    }
+    return { x: clamp(fx, 0, 1) * W, y: clamp(fy, 0, 1) * H };
+  }
+
+  // Tentukan pemain dari posisi x telunjuk (masuk zona siapa)
+  function updateHandCursors() {
+    const n = Math.max(1, players.length), zw = W / n;
+    // markah awal: kursor berbasis tangan dianggap hilang sampai terbukti ada di frame ini
+    cursors.forEach((c) => { if (c && c.src === 'hand') c.on = false; });
+    for (const hd of handsNow) {
+      const p = mapHand(hd.x, hd.y);
+      const idx = clamp(Math.floor(p.x / Math.max(1, zw)), 0, n - 1);
+      const cur = cursors[idx];
+      // dua tangan di zona sama: pakai yang paling dekat dengan tengah zona
+      const mid = (idx + 0.5) * zw;
+      if (cur && cur.src === 'hand' && cur.on && Math.abs(cur.x - mid) < Math.abs(p.x - mid)) continue;
+      cursors[idx] = { x: p.x, y: p.y, on: true, src: 'hand' };
+    }
+    // titik telunjuk di atas preview webcam
+    if (camReady && handsNow.length) {
+      vidDot.style.display = 'block';
+      vidDot.style.left = (handsNow[0].x * 100) + '%';
+      vidDot.style.top = (handsNow[0].y * 100) + '%';
+    } else {
+      vidDot.style.display = 'none';
+    }
+  }
+
+  function showTouchHint() {
+    $('modeChip').textContent = '👆 Mode: Sentuh / Klik';
+  }
+
+  async function listCameras() {
+    try {
+      const dev = await navigator.mediaDevices.enumerateDevices();
+      camDevices = dev.filter((d) => d.kind === 'videoinput');
+    } catch (e) { camDevices = []; }
+  }
+
+  function stopCamera() {
+    stopDetectLoop();
+    try {
+      if (videoStream && videoStream.getTracks) videoStream.getTracks().forEach((t) => t.stop());
+    } catch (e) { /* diabaikan */ }
+    videoStream = null;
+    try { videoEl.srcObject = null; } catch (e) { /* diabaikan */ }
+    camReady = false; handsNow = []; lastVideoTime = -1;
+    vidDot.style.display = 'none';
+    camBox.hidden = true;
+  }
+
+  // ---------- BAGIAN 5: KALIBRASI (langkah 4) ----------
+  const CALIB_CORNERS = [{ x: 0.09, y: 0.16 }, { x: 0.91, y: 0.16 }, { x: 0.91, y: 0.86 }, { x: 0.09, y: 0.86 }];
+  const CALIB_NAME = ['kiri atas', 'kanan atas', 'kanan bawah', 'kiri bawah'];
+  let calibStep = 0, calibHold = 0, calibSamples = [], calibPoints = [];
+
+  function startCalibration() {
+    calib = null; calibStep = 0; calibHold = 0; calibSamples = []; calibPoints = [];
+    CALIB_CORNERS.forEach((c, i) => {
+      const el = $('ct' + i);
+      el.hidden = false; el.className = 'calibTarget';
+      el.style.left = (c.x * 100) + '%'; el.style.top = (c.y * 100) + '%';
+    });
+    $('calibDot').hidden = false;
+    $('calibOverlay').hidden = false;
+    updateCalibHint();
+  }
+
+  function hideCalibUI() {
+    $('calibOverlay').hidden = true;
+    $('calibDot').hidden = true;
+    CALIB_CORNERS.forEach((c, i) => { $('ct' + i).hidden = true; });
+  }
+
+  function updateCalibHint() {
+    $('calibHint').innerHTML = 'Sentuh titik <b>' + (calibStep + 1) + '</b> (' + esc(CALIB_NAME[calibStep] || '') +
+      ') dengan ujung telunjuk, lalu <b>tahan ±1 detik</b>.';
+    CALIB_CORNERS.forEach((c, i) => {
+      const el = $('ct' + i);
+      el.className = 'calibTarget' + (i < calibStep ? ' done' : (i === calibStep ? ' on' : ''));
+      el.textContent = i < calibStep ? '✔' : String(i + 1);
+    });
+    const dot = $('calibDot');
+    dot.style.left = (CALIB_CORNERS[calibStep].x * 100) + '%';
+    dot.style.top = (CALIB_CORNERS[calibStep].y * 100) + '%';
+    dot.querySelector('.ck').textContent = '';
+  }
+
+  function updateCalibration(dt) {
+    if (calibStep >= 4) return;
+    const c = CALIB_CORNERS[calibStep];
+    // jarak dalam satuan normalisasi layar
+    let best = null;
+    for (const hd of handsNow) {
+      const d = Math.hypot(hd.x - c.x, hd.y - c.y);
+      if (!best || d < best.d) best = { d: d, hd: hd };
+    }
+    if (best && best.d < 0.09) {
+      calibHold += dt;
+      $('calibDot').querySelector('.ck').textContent = calibHold >= 1 ? '✔' : Math.round(calibHold * 100) + '%';
+      $('calibStatus').textContent = 'Menahan di titik ' + (calibStep + 1) + '… ' + Math.min(100, Math.round(calibHold * 100)) + '%';
+      if (calibHold >= 1) {
+        calibPoints.push({ x: best.hd.x, y: best.hd.y });
+        calibStep++; calibHold = 0;
+        if (calibStep >= 4) finishCalibration(); else updateCalibHint();
+      }
+    } else {
+      calibHold = Math.max(0, calibHold - dt * 2);
+      $('calibStatus').textContent = handsNow.length ? 'Telunjuk belum di titik yang benar — geser ke lingkaran.' : 'Deteksi tangan: menunggu… (atau lewati kalibrasi)';
+      $('calibDot').querySelector('.ck').textContent = calibHold > 0 ? Math.round(calibHold * 100) + '%' : '';
+    }
+  }
+
+  function finishCalibration() {
+    const xs = calibPoints.map((p) => p.x), ys = calibPoints.map((p) => p.y);
+    // simpan bounding box, lalu lebarkan sedikit agar jangkauan tangan terpakai penuh
+    let x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+    let y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    const padX = Math.max(0.02, (x1 - x0) * 0.12), padY = Math.max(0.02, (y1 - y0) * 0.12);
+    calib = { x0: x0 - padX, x1: x1 + padX, y0: y0 - padY, y1: y1 + padY };
+    $('calibStatus').textContent = 'Kalibrasi berhasil! ✅';
+    $('calibHint').textContent = 'Kalibrasi berhasil! ✅ Zona tangan sudah dipetakan ke layar.';
+    CALIB_CORNERS.forEach((c, i) => { const el = $('ct' + i); el.className = 'calibTarget done'; el.textContent = '✔'; });
+    later(hideCalibUI, 900);
+  }
+
+  // ---------- BAGIAN 6: TATA LETAK KANVAS & GELEMBUNG ----------
+  function resize() {
+    W = Math.max(320, window.innerWidth);
+    H = Math.max(320, window.innerHeight);
+    cv.width = W; cv.height = H;
+  }
+
+  // Zona horizontal sama rata; saat boss satu arena penuh
+  function zones() {
+    if (phase === 'boss' || phase === 'bossIntro') return [{ x0: 0, x1: W, p: -1 }];
+    const n = Math.max(1, players.length), zw = W / n;
+    const out = [];
+    for (let i = 0; i < n; i++) out.push({ x0: i * zw, x1: (i + 1) * zw, p: i });
+    return out;
+  }
+
+  const TOP_PAD = () => Math.min(230, H * 0.26);
+  const BOT_PAD = () => Math.min(150, H * 0.16);
+
+  // 4 gelembung jawaban dalam tiap zona: 4 kolom bila zona lebar,否则 2x2
+  function slotPos(zone, i) {
+    const zwPx = zone.x1 - zone.x0;
+    const cols = zwPx >= 720 ? 4 : 2;
+    const rows = Math.ceil(4 / cols);
+    const col = i % cols, row = Math.floor(i / cols);
+    const cellW = zwPx / cols;
+    const usableH = H - TOP_PAD() - BOT_PAD();
+    const cellH = usableH / rows;
+    const r = clamp(Math.min(cellW, cellH) * 0.37, 40, 132);
     return {
-      q: s.pertanyaan || 'Pilih jawaban yang benar',
-      options: opsi,
-      answer: kunci
+      x: zone.x0 + col * cellW + cellW / 2,
+      y: TOP_PAD() + row * cellH + cellH * 0.62,
+      r: r, row: row
     };
   }
 
-  function shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+  function wrapText(text, r, fs) {
+    ctx.save();
+    ctx.font = '800 ' + fs + 'px system-ui,"Segoe UI",Arial,sans-serif';
+    const words = String(text).split(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= r * 1.62 || !cur) cur = t;
+      else { lines.push(cur); cur = w; }
+      if (lines.length === 4) break;
     }
-    return arr;
-  }
-
-  // ---------- MEDIAPIPE HANDS ----------
-  function initHands() {
-    const mpHands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-    mpHands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.5
-    });
-    mpHands.onResults(onHandsResults);
-    return mpHands;
-  }
-
-  function onHandsResults(results) {
-    hands.length = 0;
-    if (!results.multiHandLandmarks || !results.multiHandedness) return;
-
-    for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-      const lm = results.multiHandLandmarks[i];
-      const label = results.multiHandedness[i].label; // 'Left' / 'Right'
-      // MediaPipe label is based on camera mirror. Because we mirror the video with CSS,
-      // from the player's point of view: the hand that appears on the left of the screen
-      // is actually the player's right hand and vice versa. We map by screen x-position instead.
-      const indexTip = lm[8];
-      const x = (1 - indexTip.x); // mirror to match CSS mirrored video
-      const y = indexTip.y;
-      hands.push({ x, y, label, rawX: indexTip.x, rawY: indexTip.y, lm });
+    if (cur && lines.length < 4) lines.push(cur);
+    if (lines.length === 4) {
+      // potong baris terakhir bila masih terlalu panjang
+      let last = lines[3];
+      while (lines.join(' ').length > 0 && ctx.measureText(last).width > r * 1.72 && last.length > 2) {
+        last = last.slice(0, -2);
+      }
+      lines[3] = last + (lines[3].length > last.length ? '…' : '');
     }
+    ctx.restore();
+    return { lines: lines, fs: fs };
+  }
 
-    // Assign players by horizontal position on screen (after mirror)
-    hands.sort((a, b) => a.x - b.x);
-    hands.forEach((h, idx) => {
-      h.player = idx === 0 ? 1 : 2;
+  function makeBubbles(q, kind) {
+    bubbles.length = 0;
+    const zs = zones();
+    zs.forEach((zone) => {
+      q.opts.forEach((opt, oi) => {
+        const sp = slotPos(zone, oi);
+        const fs = clamp(sp.r * 0.30, 12, 24);
+        bubbles.push({
+          p: zone.p, kind: kind, letter: 'ABCD'[oi], text: opt,
+          correct: (opt === q.answer), x0: sp.x, y: -sp.r - 20 - sp.row * 90 - oi * 18,
+          ty: sp.y, r: sp.r, wob: rand(8, 22), wfreq: rand(0.7, 1.5), wph: rand(0, 6.28),
+          spd: rand(120, 190), dx: sp.x, dy: sp.y, popped: false, dwell: 0, wrap: wrapText(opt, sp.r, fs)
+        });
+      });
+      // Mystery Gesture: gelembung emas bonus, muncul acak
+      if (kind === 'q' && pendingMystery) {
+        const zwPx = zone.x1 - zone.x0;
+        const r = clamp(zwPx * 0.07, 30, 52);
+        const lines = { lines: ['❓'], fs: clamp(r * 0.7, 16, 34) };
+        bubbles.push({
+          p: zone.p, kind: 'mystery', letter: '?', text: 'BONUS?', correct: false,
+          x0: zone.x0 + zwPx / 2, y: -r - 30, ty: TOP_PAD() * 0.62, r: r,
+          wob: rand(10, 26), wfreq: rand(1.1, 1.9), wph: rand(0, 6.28), spd: rand(150, 210),
+          dx: zone.x0 + zwPx / 2, dy: 0, popped: false, dwell: 0, wrap: lines
+        });
+        pendingMystery = false;
+      }
     });
   }
 
-  async function startCamera() {
-    const mpHands = initHands();
-
-    camera = new Camera(videoEl, {
-      onFrame: async () => { await mpHands.send({image: videoEl}); },
-      width: 640, height: 480
-    });
-    await camera.start();
-    videoWidth = videoEl.videoWidth || 640;
-    videoHeight = videoEl.videoHeight || 480;
+  function updateBubbles(dt, now) {
+    for (const b of bubbles) {
+      if (b.popped) continue;
+      if (b.y < b.ty) {
+        b.y = Math.min(b.ty, b.y + b.spd * dt);
+      } else {
+        // mengambang (bob) di posisi target supaya tidak keluar layar
+        b.y = b.ty + Math.sin(now / 700 + b.wph) * 6;
+      }
+      const amp = b.y < b.ty - 2 ? b.wob : b.wob * 0.55;
+      b.dx = b.x0 + Math.sin(now / 620 * b.wfreq + b.wph) * amp;
+    }
   }
 
-  // ---------- GAME LOOP ----------
-  function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+  function bubbleAt(px, py, forPlayer) {
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      if (b.popped) continue;
+      if (forPlayer >= 0 && b.p !== forPlayer && b.kind !== 'mystery' && phase !== 'boss') continue;
+      if (Math.hypot(px - b.dx, py - b.dy) <= b.r * 1.06) return b;
+    }
+    return null;
   }
 
-  function startGame() {
-    p1Name = ($('p1Name').value || 'Siswa 1').trim().substring(0, 14);
-    p2Name = ($('p2Name').value || 'Siswa 2').trim().substring(0, 14);
-    durationSec = Math.max(30, Math.min(300, parseInt($('gameDuration').value, 10) || 90));
+  // ---------- BAGIAN 7: GAMBAR (gelembung, kursor, partikel) ----------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
 
-    hudP1Name.textContent = p1Name;
-    hudP2Name.textContent = p2Name;
-    score1 = 0; score2 = 0;
-    timeLeft = durationSec;
-    qIndex = 0;
-    bubbles = [];
-    particles = [];
-    nextBubbleAt = 0;
-    cooldown = { 1: 0, 2: 0 };
-    paused = false; gameEnded = false;
-
-    updateScoreUI();
-    timerValue.textContent = Math.ceil(timeLeft);
-    timerBox.classList.remove('low');
-
-    setupScreen.hidden = true;
-    gameScreen.hidden = false;
-    endScreen.hidden = true;
-    pauseOverlay.hidden = true;
-
-    resizeCanvas();
-    loadQuestion();
-    lastTime = performance.now();
-    clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-      if (paused || gameEnded) return;
-      timeLeft -= 1;
-      timerValue.textContent = Math.ceil(timeLeft);
-      if (timeLeft <= 10) timerBox.classList.add('low');
-      if (timeLeft <= 0) endGame();
-    }, 1000);
-
-    if (rafId) cancelAnimationFrame(rafId);
-    requestAnimationFrame(gameLoop);
-  }
-
-  function loadQuestion() {
-    if (qIndex >= questions.length) qIndex = 0; // recycle
-    const q = questions[qIndex];
-    questionText.textContent = q.q;
-    bubbles = [];
-    nextBubbleAt = performance.now() + 300;
-    questionDeadline = performance.now() + 20000; // 20 detik per soal
-  }
-
-  function spawnBubbles(now) {
-    if (!questions[qIndex]) return;
-    if (now < nextBubbleAt) return;
-    const opts = questions[qIndex].options;
-    const total = opts.length;
-    if (bubbles.length >= total) return;
-
-    const margin = 70;
-    const usableW = canvas.width - margin * 2;
-    const cols = total;
-    const colW = usableW / cols;
-
-    // Create all bubbles at once for this question, staggered slightly in y
-    for (let i = 0; i < total; i++) {
-      const x = margin + colW * i + colW / 2 + (Math.random() - .5) * colW * .35;
-      const r = Math.min(68, Math.max(48, canvas.width / (total * 3.2)));
-      bubbles.push({
-        text: opts[i],
-        answer: opts[i] === questions[qIndex].answer,
-        x: x,
-        y: -r - i * 90 - Math.random() * 40,
-        r: r,
-        vx: (Math.random() - .5) * 0.6,
-        vy: 1.2 + Math.random() * 0.8,
-        wobble: Math.random() * Math.PI * 2,
-        active: true,
-        spawnAt: now + i * 180
+    // garis pemisah zona + warna identitas pemain
+    const zs = zones();
+    if (zs.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,.10)';
+      ctx.setLineDash([10, 12]);
+      ctx.lineWidth = 2;
+      for (let i = 1; i < zs.length; i++) {
+        ctx.beginPath(); ctx.moveTo(zs[i].x0, 0); ctx.lineTo(zs[i].x0, H); ctx.stroke();
+      }
+      ctx.restore();
+      zs.forEach((z) => {
+        const p = players[z.p];
+        if (!p) return;
+        ctx.save();
+        const g = ctx.createLinearGradient(z.x0, H, z.x0, H - 90);
+        g.addColorStop(0, p.color + '33'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(z.x0, H - 90, z.x1 - z.x0, 90);
+        ctx.restore();
       });
     }
-    nextBubbleAt = now + 10000; // prevent respawn until answered
-  }
 
-  function updateBubbles(dt) {
+    // gelembung jawaban
     for (const b of bubbles) {
-      if (!b.active) continue;
-      b.y += b.vy * (60 * dt);
-      b.wobble += dt * 2;
-      b.x += Math.sin(b.wobble) * 0.3;
-      // reset if falls below screen
-      if (b.y - b.r > canvas.height + 20) {
-        b.y = -b.r - Math.random() * 50;
-        b.x = Math.max(b.r + 20, Math.min(canvas.width - b.r - 20, b.x));
-      }
+      if (b.popped) continue;
+      drawBubble(b);
+    }
+
+    // kursor tangan / pointer
+    const showCursor = camReady || touchOnly;
+    if (showCursor) {
+      players.forEach((p, i) => {
+        const c = cursors[i];
+        if (!c || !c.on) return;
+        ctx.save();
+        ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(c.x, c.y, 16, 0, 6.2832); ctx.stroke();
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(c.x, c.y, 6, 0, 6.2832); ctx.fill();
+        ctx.font = '700 13px system-ui,Arial,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(clampLen(p.name, 14), c.x, c.y - 24);
+        ctx.restore();
+      });
+    }
+
+    // partikel letusan & konfeti
+    for (const pt of particles) {
+      ctx.save();
+      ctx.globalAlpha = clamp(pt.life / pt.maxLife, 0, 1);
+      ctx.translate(pt.x, pt.y);
+      ctx.rotate(pt.rot);
+      ctx.fillStyle = pt.color;
+      if (pt.shape === 'rect') ctx.fillRect(-pt.r, -pt.r * 0.5, pt.r * 2, pt.r);
+      else { ctx.beginPath(); ctx.arc(0, 0, pt.r, 0, 6.2832); ctx.fill(); }
+      ctx.restore();
     }
   }
 
-  function checkHandHits(now) {
-    for (const h of hands) {
-      const pid = h.player;
-      if (cooldown[pid] > now) continue;
-
-      const sx = h.x * canvas.width;
-      const sy = h.y * canvas.height;
-
-      for (const b of bubbles) {
-        if (!b.active) continue;
-        if (now < b.spawnAt + 400) continue; // small spawn immunity
-        const dx = sx - b.x;
-        const dy = sy - b.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < b.r * 1.15) {
-          popBubble(b, pid, now);
-          cooldown[pid] = now + 600;
-          break;
-        }
-      }
-    }
-  }
-
-  function popBubble(b, player, now) {
-    b.active = false;
-    const isCorrect = b.answer;
-    const color = isCorrect ? '#22c55e' : '#ef4444';
-
-    if (isCorrect) {
-      if (player === 1) score1++;
-      else score2++;
-      updateScoreUI();
-      createParticles(b.x, b.y, color, 22);
-      // advance to next question after short delay
-      setTimeout(() => {
-        if (gameEnded) return;
-        qIndex++;
-        loadQuestion();
-      }, 450);
+  function drawBubble(b) {
+    const hovP = hoverOwner(b);
+    ctx.save();
+    // badan gelembung: lingkaran transparan kebiruan + kilau
+    const g = ctx.createRadialGradient(b.dx - b.r * 0.3, b.dy - b.r * 0.35, b.r * 0.12, b.dx, b.dy, b.r);
+    if (b.kind === 'mystery') {
+      g.addColorStop(0, 'rgba(255,240,180,.95)'); g.addColorStop(.5, 'rgba(245,197,24,.5)'); g.addColorStop(1, 'rgba(180,120,0,.28)');
+    } else if (b.kind === 'boss') {
+      g.addColorStop(0, 'rgba(255,200,200,.9)'); g.addColorStop(.5, 'rgba(239,68,68,.45)'); g.addColorStop(1, 'rgba(80,10,10,.3)');
     } else {
-      createParticles(b.x, b.y, color, 14);
-      // Optional: small penalty? The user's spec says "salah gelembung meletus warna merah".
-      // We keep score unchanged to be friendly; red burst is enough feedback.
+      g.addColorStop(0, 'rgba(226,244,255,.86)'); g.addColorStop(.5, 'rgba(125,180,255,.34)'); g.addColorStop(1, 'rgba(40,90,200,.2)');
+    }
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(b.dx, b.dy, b.r, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = hovP >= 0 ? (players[hovP] ? players[hovP].color : '#fff') : 'rgba(200,226,255,.72)';
+    ctx.lineWidth = hovP >= 0 ? 4 : 2;
+    ctx.stroke();
+
+    // kilau
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.beginPath(); ctx.ellipse(b.dx - b.r * 0.36, b.dy - b.r * 0.42, b.r * 0.2, b.r * 0.11, -0.6, 0, 6.2832); ctx.fill();
+
+    // teks opsi
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '800 ' + b.wrap.fs + 'px system-ui,"Segoe UI",Arial,sans-serif';
+    ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 6;
+    const lh = b.wrap.fs * 1.2;
+    const y0 = b.dy - (b.wrap.lines.length - 1) * lh / 2;
+    b.wrap.lines.forEach((ln, i) => ctx.fillText(ln, b.dx, y0 + i * lh));
+    ctx.shadowBlur = 0;
+
+    // label A/B/C/D kecil di tepi gelembung
+    if (b.kind !== 'mystery') {
+      const lx = b.dx - b.r * 0.72, ly = b.dy - b.r * 0.72;
+      ctx.fillStyle = 'rgba(9,14,40,.92)';
+      ctx.beginPath(); ctx.arc(lx, ly, Math.max(11, b.r * 0.2), 0, 6.2832); ctx.fill();
+      ctx.fillStyle = '#f5c518';
+      ctx.font = '900 ' + Math.max(12, b.r * 0.22) + 'px system-ui,Arial,sans-serif';
+      ctx.fillText(b.letter, lx, ly + 1);
+    }
+
+    // sorotan target + ring progres dwell + teks TARGET TERDETEKSI!
+    if (hovP >= 0) {
+      const c = cursors[hovP];
+      ctx.strokeStyle = players[hovP] ? players[hovP].color : '#fff';
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.arc(b.dx, b.dy, b.r + 8, 0, 6.2832); ctx.stroke();
+      const prog = clamp(b.dwell / DWELL_SEC, 0, 1);
+      if (prog > 0.02) {
+        ctx.strokeStyle = '#f5c518'; ctx.lineWidth = 7;
+        ctx.beginPath(); ctx.arc(b.dx, b.dy, b.r + 15, -Math.PI / 2, -Math.PI / 2 + prog * 6.2832); ctx.stroke();
+      }
+      ctx.fillStyle = '#f5c518';
+      ctx.font = '900 ' + clamp(b.r * 0.2, 12, 20) + 'px system-ui,Arial,sans-serif';
+      if (c && c.on && !touchInstant()) ctx.fillText('TARGET TERDETEKSI!', b.dx, b.dy - b.r - 16);
+    }
+    ctx.restore();
+  }
+
+  function hoverOwner(b) {
+    for (let i = 0; i < players.length; i++) {
+      if (hoverInfo[i] && hoverInfo[i].b === b) return i;
+    }
+    return -1;
+  }
+  function touchInstant() { return !camReady; }
+
+  // ---------- BAGIAN 8: PARTIKEL LETUSAN & KONFETI ----------
+  function burst(b, ok) {
+    b.popped = true;
+    const col = ok === 'green' ? '#22c55e' : (ok === 'red' ? '#ef4444' : (ok === 'gold' ? '#f5c518' : '#94a3b8'));
+    const shades = [col, '#ffffff', col];
+    for (let i = 0; i < 24; i++) {                 // ±24 keping
+      const a = (i / 24) * 6.2832 + rand(-0.2, 0.2);
+      particles.push({
+        x: b.dx, y: b.dy, vx: Math.cos(a) * rand(120, 420), vy: Math.sin(a) * rand(120, 420) - 60,
+        r: rand(2.5, 7), color: shades[i % 3], life: rand(0.55, 1.1), maxLife: 1.1,
+        rot: rand(0, 6.28), vr: rand(-8, 8), shape: i % 2 ? 'rect' : 'dot'
+      });
     }
   }
 
-  function createParticles(x, y, color, count) {
-    for (let i = 0; i < count; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const spd = 2 + Math.random() * 5;
+  function confetti(n) {
+    const pal = ['#f5c518', '#22c55e', '#3b82f6', '#ef4444', '#a855f7', '#ec4899', '#14b8a6'];
+    for (let i = 0; i < n; i++) {
       particles.push({
-        x, y,
-        vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd,
-        life: 1,
-        decay: 0.02 + Math.random() * 0.03,
-        color,
-        size: 3 + Math.random() * 5
+        x: rand(0, W), y: rand(-H * 0.4, 0), vx: rand(-60, 60), vy: rand(90, 260),
+        r: rand(4, 9), color: pal[i % pal.length], life: rand(1.6, 3.2), maxLife: 3.2,
+        rot: rand(0, 6.28), vr: rand(-6, 6), shape: 'rect'
       });
     }
   }
@@ -546,225 +1116,857 @@
   function updateParticles(dt) {
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.18; // gravity
-      p.life -= p.decay;
-      if (p.life <= 0) particles.splice(i, 1);
+      p.vy += 780 * dt;                    // gravitasi
+      p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      p.life -= dt;
+      if (p.life <= 0 || p.y > H + 60) particles.splice(i, 1);
     }
   }
 
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Background gradient
-    const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/3, 40, canvas.width/2, canvas.height/2, canvas.height);
-    grad.addColorStop(0, '#132056');
-    grad.addColorStop(1, '#0b1024');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw divider between player zones
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,.08)';
-    ctx.setLineDash([12, 12]);
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, 110);
-    ctx.lineTo(canvas.width / 2, canvas.height - 20);
-    ctx.stroke();
-    ctx.restore();
-
-    // Draw bubbles
-    for (const b of bubbles) {
-      if (!b.active) continue;
-      drawBubble(b);
-    }
-
-    // Draw hands
-    for (const h of hands) {
-      drawHandCursor(h);
-    }
-
-    // Draw particles
-    for (const p of particles) {
-      ctx.globalAlpha = p.life;
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+  // ---------- BAGIAN 9: HUD ----------
+  function renderScoreBar() {
+    const bar = $('scoreBar');
+    bar.innerHTML = '';
+    players.forEach((p) => {
+      const d = document.createElement('div');
+      d.className = 'scCard';
+      d.style.borderColor = p.color;
+      d.innerHTML = '<span class="nm" style="color:' + p.color + '">' + esc(p.name) + '</span>' +
+        '<span class="pt">' + p.score + '</span>' +
+        '<span class="lv">Lv ' + p.level + ' ' + esc(LEVEL_NAME[p.level - 1]) + ' · ⭐' + p.stars + '</span>';
+      bar.appendChild(d);
+    });
   }
 
-  function drawBubble(b) {
-    const { x, y, r, text } = b;
-
-    // Glow
-    const glow = ctx.createRadialGradient(x, y, r * .2, x, y, r * 1.4);
-    glow.addColorStop(0, 'rgba(99,102,241,.35)');
-    glow.addColorStop(1, 'rgba(99,102,241,0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(x, y, r * 1.4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Bubble body
-    const bodyGrad = ctx.createRadialGradient(x - r*.3, y - r*.3, r*.1, x, y, r);
-    bodyGrad.addColorStop(0, 'rgba(255,255,255,.18)');
-    bodyGrad.addColorStop(.5, 'rgba(99,102,241,.25)');
-    bodyGrad.addColorStop(1, 'rgba(30,41,138,.45)');
-    ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = 'rgba(165,180,252,.55)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Shine
-    ctx.fillStyle = 'rgba(255,255,255,.35)';
-    ctx.beginPath();
-    ctx.ellipse(x - r*.35, y - r*.35, r*.18, r*.1, -Math.PI/4, 0, Math.PI*2);
-    ctx.fill();
-
-    // Text
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const fontSize = Math.min(18, r / Math.max(3, text.length / 5));
-    ctx.font = `800 ${fontSize}px system-ui, sans-serif`;
-    wrapText(ctx, text, x, y, r * 1.7, fontSize * 1.25);
+  function renderZoneBar() {
+    const zb = $('zoneBar');
+    zb.innerHTML = '';
+    players.forEach((p) => {
+      const d = document.createElement('div');
+      d.className = 'zChip';
+      d.style.borderColor = p.color;
+      d.innerHTML = '<span style="color:' + p.color + '">' + esc(p.name) + '</span> · ' + p.score + ' poin' +
+        (p.combo >= 2 ? ' · COMBO x' + Math.min(p.combo, 5) : '') +
+        ' · <span class="muted">' + p.correct + '✔ / ' + p.wrong + '✘</span>';
+      zb.appendChild(d);
+    });
   }
 
-  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-    const words = text.split(' ');
-    const lines = [];
-    let line = '';
-    for (const word of words) {
-      const test = line ? line + ' ' + word : word;
-      if (ctx.measureText(test).width > maxWidth && line) {
-        lines.push(line);
-        line = word;
+  function updateHeader() {
+    const isBoss = (phase === 'boss');
+    $('chipSoal').textContent = isBoss ? '👹 SOAL BOSS ' + (bossHp === 0 ? 3 : 4 - bossHp) + '/3'
+      : 'Soal ' + Math.min(qIdx + 1, setList.length) + '/' + targetCount;
+    const lvPlayer = players[0] || null;
+    $('chipLevel').textContent = 'Level ' + (lvPlayer ? lvPlayer.level : 1) + ' · ' + (lvPlayer ? LEVEL_NAME[lvPlayer.level - 1] : '');
+    const tl = Math.max(0, Math.ceil(ansLeft));
+    $('chipTimer').textContent = '⏱ ' + tl + 's';
+    $('chipTimer').classList.toggle('low', tl <= 5);
+    $('chipMatch').textContent = 'Sisa laga ' + mmss(matchLeftSec);
+    $('chipBoss').hidden = !isBoss;
+    if (isBoss) $('chipBoss').innerHTML = 'HP BOSS: <span id="hearts">' + '❤️'.repeat(bossHp) + '🖤'.repeat(3 - bossHp) + '</span>';
+    $('qText').innerHTML = esc(currentQ ? currentQ.q : '');
+  }
+
+  // ---------- BAGIAN 10: ALUR PERMAINAN ----------
+  let currentQ = null, ansLeft = 0, locked = false, bossHp = 3, bossLeft = 0;
+  let obs = null, power = null;
+
+  function buildSet() {
+    const pool = questions.slice();
+    // acak sederhana
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+    setList = [];
+    for (let i = 0; i < targetCount; i++) setList.push({ q: pool[i % pool.length], kind: 'q' });
+    bossAt = clamp(Math.ceil(targetCount * 0.8), 3, targetCount);
+  }
+
+  // LANGKAH 5: countdown lalu soal pertama (didahului kalibrasi bila kamera siap)
+  let pendingStart = false, startingNow = false;
+
+  async function startGame() {
+    if (startingNow) return;
+    startingNow = true;
+    $('btnStart').disabled = true;
+    readConfig();
+    // numHands diset sesuai jumlah pemain pada mode terpilih (maks 4)
+    if (!camReady) {
+      await startCamera();                          // izin kamera diminta di sini (tindakan pengguna)
+    } else {
+      try { await loadLandmarker(players.length); }
+      catch (e) { camStatus('⚠️ Model tangan gagal dimuat — pakai mode sentuh.', false); touchOnly = true; camReady = false; stopCamera(); }
+    }
+    $('btnStart').disabled = false;
+    startingNow = false;
+
+    buildSet();
+    qIdx = 0; sinceObstacle = 0; powerUses = 0; pendingPower = -1; pendingMystery = false;
+    bossDone = false; bossWin = false; bossHp = 3; locked = false;
+    obs = null; power = null; particles.length = 0;
+    $('chipBoss').hidden = true; $('btnSkip').hidden = true;
+    setupScreen.hidden = true; endScreen.hidden = true; gameScreen.hidden = false;
+    $('pauseOverlay').hidden = true; hideResult(); $('challengeBanner').hidden = true;
+    paused = false; running = true;
+    $('modeChip').textContent = camReady ? '🫵 Mode: Menunjuk (dwell 0,6 detik)' : '👆 Mode: Sentuh / Klik';
+    renderScoreBar(); renderZoneBar();
+    bubbles.length = 0;
+    startLoop();
+
+    // LANGKAH 4: kalibrasi kamera dulu (hanya bila kamera siap)
+    if (camReady) {
+      startCalibration();
+      beginCountdown();
+    } else {
+      $('touchFallback').hidden = false;
+      pendingStart = true;
+    }
+  }
+
+  function beginCountdown() {
+    $('touchFallback').hidden = true;
+    phase = 'countdown';
+    let n = 3;
+    $('countOverlay').hidden = false;
+    $('cdNum').textContent = '3';
+    const tick = () => {
+      if (n > 0) { $('cdNum').textContent = String(n); n--; later(tick, 800); }
+      else {
+        $('cdNum').textContent = 'MOTION QUEST!';
+        $('cdNum').style.fontSize = 'clamp(26px,5.4vw,72px)';
+        later(() => {
+          $('countOverlay').hidden = true;
+          $('cdNum').style.fontSize = '';
+          loadQuestion();
+        }, 900);
+      }
+    };
+    tick();
+  }
+
+  // LANGKAH 6: arena — gelembung turunkan dari atas
+  function loadQuestion() {
+    if (matchLeftSec <= 0) { endGame(); return; }
+    if (qIdx >= bossAt && !bossDone) { startBoss(); return; }
+    if (qIdx >= setList.length) { bossDone ? endGame() : startBoss(); return; }
+    currentQ = setList[qIdx].q;
+    locked = false;
+    ansLeft = ansSecTotal;
+    phase = 'question';
+    hoverInfo = players.map(() => ({ b: null, t: 0 }));
+    pendingMystery = (Math.random() < 0.25 && phase !== 'boss');
+    makeBubbles(currentQ, 'q');
+    updateHeader();
+  }
+
+  // LANGKAH 7: pilih jawaban dengan gesture (dwell) — atau sentuh/klik
+  function updateSelection(dt) {
+    if (phase !== 'question' && phase !== 'boss' && phase !== 'handtest') return;
+    const zw = W / Math.max(1, players.length);
+    players.forEach((p, i) => {
+      const c = cursors[i];
+      if (!c) return;
+      // tangan tidak muncul di frame lagi → kursor tangan dianggap hilang
+      if (c.src === 'hand' && performance.now() - handsSeenAt > 700) c.on = false;
+      cooldowns[i] = Math.max(0, (cooldowns[i] || 0) - dt);
+      if (!c.on || paused) {
+        if (hoverInfo[i] && hoverInfo[i].b) hoverInfo[i].b.dwell = 0;
+        hoverInfo[i] = { b: null, t: 0 };
+        return;
+      }
+      let b = null;
+      if (phase === 'boss' || phase === 'handtest') {
+        // arena penuh: tangan mana pun boleh mengenai gelembung mana pun
+        for (const bb of bubbles) if (!bb.popped && Math.hypot(c.x - bb.dx, c.y - bb.dy) <= bb.r * 1.06) { b = bb; break; }
       } else {
-        line = test;
+        if (Math.floor(c.x / Math.max(1, zw)) === i) b = bubbleAt(c.x, c.y, i);
       }
+      const hi = hoverInfo[i] || { b: null, t: 0 };
+      if (hi.b !== b) { if (hi.b) hi.b.dwell = 0; hi.b = b; hi.t = 0; hoverInfo[i] = hi; }
+      if (b && cooldowns[i] <= 0) {
+        b.dwell += dt;
+        if (b.dwell >= DWELL_SEC) {
+          b.dwell = 0;
+          selectBubble(b, i, false);
+          cooldowns[i] = COOLDOWN_SEC;
+          hi.b = null; hi.t = 0;
+        }
+      }
+    });
+  }
+
+  function selectBubble(b, pIdx, viaTouch) {
+    if (phase === 'handtest') {                     // uji tangan: letus hijau tanpa poin
+      burst(b, 'green');
+      later(() => { if (phase === 'handtest') spawnHandTestTargets(); }, 700);
+      return;
     }
-    if (line) lines.push(line);
-    const startY = y - ((lines.length - 1) * lineHeight) / 2;
-    lines.forEach((l, i) => ctx.fillText(l, x, startY + i * lineHeight));
+    if (phase === 'question') {
+      if (b.popped || locked) return;
+      const pl = players[pIdx];
+      if (!pl || pl.answered) return;
+      pl.answered = true;
+    } else if (phase === 'boss') {
+      if (b.popped || locked) return;
+    } else return;
+    b.popped = true;
+    onAnswer(b, pIdx);
   }
 
-  function drawHandCursor(h) {
-    const sx = h.x * canvas.width;
-    const sy = h.y * canvas.height;
-    const color = h.player === 1 ? '#3b82f6' : '#f97316';
+  // LANGKAH 8 & 9: koreksi jawaban + skor
+  function onAnswer(b, pIdx) {
+    const pl = players[pIdx] || null;
+    const used = ansSecTotal - Math.max(0, ansLeft);
+    locked = true;
+    phase = 'feedback';
+    if (b.kind === 'mystery') {
+      const gift = Math.round(rand(2, 4)) * 20;
+      burst(b, 'gold');
+      if (pl) { pl.score += gift; pl.stars++; }
+      showResult('gold', '❓ MYSTERY GESTURE!', '+' + gift + ' POIN',
+        'Poin kejutan untuk <b>' + esc(pl ? pl.name : '-') + '</b>! kunci: <b>' + esc(currentQ.answer) + '</b>' +
+        (currentQ.explain ? '<br><span class="muted">' + esc(currentQ.explain) + '</span>' : ''),
+        () => finishFeedback());
+      renderScoreBar(); renderZoneBar();
+      return;
+    }
 
-    // Outer ring
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(sx, sy, 22, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Inner dot
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(sx, sy, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Player label
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 12px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('P' + h.player, sx, sy - 34);
-  }
-
-  function gameLoop(now) {
-    if (gameEnded) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
-    lastTime = now;
-
-    if (!paused) {
-      spawnBubbles(now);
-      updateBubbles(dt);
-      checkHandHits(now);
-      updateParticles(dt);
-      if (now > questionDeadline && bubbles.length > 0) {
-        qIndex++;
-        loadQuestion();
+    if (b.correct) {
+      burst(b, 'green');                            // LANGKAH 8: gelembung meletus HIJAU
+      if (pl) {
+        const base = Math.round(LEVEL_PTS[pl.level - 1] * diffF);
+        const speed = Math.round(50 * clamp(ansLeft / Math.max(1, ansSecTotal), 0, 1));
+        pl.combo++; pl.streak++; pl.levelStreak++;
+        pl.bestCombo = Math.max(pl.bestCombo, pl.combo);
+        pl.correct++; pl.timeSum += used; pl.timeCnt++;
+        const mult = pl.combo >= 2 ? Math.min(pl.combo, 5) : 1;
+        if (pl.levelStreak % 3 === 0 && pl.level < 5) pl.level++;
+        const gain = Math.round((base + speed) * mult);
+        pl.score += gain;
+        if (pl.combo === 3 && powerUses < 3) pendingPower = pl.idx;
+        lastGain = { base: base, speed: speed, mult: mult, gain: gain, pl: pl };
       }
+      if (bossMode) { bossHp = Math.max(0, bossHp - 1); }   // benar = 1 hati boss hilang
+      showResult('ok', '✅ CORRECT!', '+' + (lastGain ? lastGain.gain : 0) + ' POIN',
+        resultBody(true, pl), () => finishFeedback());
+    } else {
+      burst(b, 'red');                              // LANGKAH 9: gelembung meletus MERAH
+      if (pl) {
+        pl.combo = 0; pl.streak = 0; pl.wrong++; pl.level = Math.max(1, pl.level - 1); pl.levelStreak = 0;
+        pl.score -= WRONG_PENALTY; pl.timeSum += used; pl.timeCnt++;
+      }
+      if (bossMode) { bossLeft = Math.max(6, bossLeft - 5); }   // salah = waktu boss berkurang
+      showResult('bad', '❌ WRONG!', '−' + WRONG_PENALTY + ' POIN',
+        resultBody(false, pl), () => finishFeedback());
+    }
+    renderScoreBar(); renderZoneBar(); updateHeader();
+  }
+
+  let lastGain = null, bossMode = false;
+
+  function resultBody(ok, pl) {
+    let h = '';
+    if (pl) h += '<b style="color:' + pl.color + '">' + esc(pl.name) + '</b> · ';
+    h += 'Level ' + (pl ? pl.level : 1) + ' (' + esc(LEVEL_NAME[(pl ? pl.level : 1) - 1]) + ')';
+    if (ok && lastGain) {
+      h += '<br>POIN DASAR <b>+' + lastGain.base + '</b> · SPEED BONUS <b>+' + lastGain.speed + '</b>';
+      if (lastGain.mult >= 2) h += ' · <b style="color:#f5c518">COMBO x' + lastGain.mult + '</b>';
+    }
+    h += '<br>Kunci: <b style="color:#22c55e">' + esc(currentQ ? currentQ.answer : '-') + '</b>';
+    if (currentQ && currentQ.explain) h += '<br><span class="muted">' + esc(currentQ.explain) + '</span>';
+    if (bossMode) h += '<br>HP Boss tersisa: ' + '❤️'.repeat(bossHp) + '🖤'.repeat(3 - bossHp);
+    return h;
+  }
+
+  // Semua pemain sudah menjawab (battle) → lanjut
+  function finishFeedback() {
+    hideResult();
+    if (bossMode) { nextBossStep(); return; }
+    if (pendingPower >= 0 && powerUses < 3) { startPower(); return; }
+    sinceObstacle++;
+    if (sinceObstacle >= 5) { sinceObstacle = 0; startObstacle(); return; }
+    // reset status "sudah menjawab" untuk soal berikutnya
+    players.forEach((p) => { p.answered = 0; });
+    qIdx++;
+    loadQuestion();
+  }
+
+  function timeUp() {
+    locked = true;
+    phase = 'feedback';
+    players.forEach((p) => { p.combo = 0; p.streak = 0; });
+    // gelembung benar meletus hijau otomatis sebagai penanda (tanpa poin)
+    let marker = null;
+    bubbles.forEach((b) => { if (b.correct && !b.popped) marker = b; });
+    if (marker) burst(marker, 'green');
+    bubbles.forEach((b) => { if (!b.popped && b.kind !== 'mystery') { b.popped = true; burst(b, 'grey'); } });
+    if (bossMode) bossLeft = Math.max(6, bossLeft - 5);
+    renderScoreBar(); renderZoneBar();
+    showResult('up', '⏰ TIME\'S UP!', 'TANPA POIN',
+      'Waktu habis. Kunci: <b style="color:#22c55e">' + esc(currentQ ? currentQ.answer : '-') + '</b>' +
+      (currentQ && currentQ.explain ? '<br><span class="muted">' + esc(currentQ.explain) + '</span>' : ''),
+      () => finishFeedback());
+  }
+
+  // ---------- BAGIAN 11: OVERLAY HASIL JAWABAN ----------
+  let resTimer = 0, resNext = null;
+  function showResult(kind, big, pts, body, after) {
+    const ov = $('resultOverlay');
+    const colors = { ok: ['#22c55e', 'var(--ok)'], bad: ['#ef4444', 'var(--bad)'], up: ['#f59e0b', '#f59e0b'], gold: ['#f5c518', 'var(--gold)'] };
+    const c = colors[kind] || colors.ok;
+    $('resBig').textContent = big; $('resBig').style.color = c[1];
+    $('resPts').textContent = pts; $('resPts').style.color = c[1];
+    const bx = $('resBox');
+    bx.innerHTML = body; bx.style.borderColor = c[0];
+    ov.hidden = false;
+    resNext = after || null;
+    resTimer = 1.6;                                  // ±1,6 detik, dihitung dengan delta waktu
+  }
+  function hideResult() { $('resultOverlay').hidden = true; resNext = null; }
+
+  // ---------- BAGIAN 12: TANTANGAN AR OBSTACLE (langkah 10) ----------
+  const OBSTACLES = [
+    { key: 'WALL', text: 'WALL — Angkat kedua tangan tinggi-tinggi!', need: 'wall', pts: 50 },
+    { key: 'DODGE', text: 'DODGE — Gerakkan tangan ke kiri lalu ke kanan!', need: 'dodge', pts: 50 },
+    { key: 'JUMP', text: 'JUMP — Angkat tangan tinggi lalu turunkan!', need: 'jump', pts: 50 }
+  ];
+
+  function startObstacle() {
+    const o = OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
+    phase = 'obstacle';
+    bubbles.length = 0;
+    obs = { def: o, left: 5, minX: 1, maxX: 0, minY: 1, maxY: 0, nHands: 0, done: false };
+    $('cbTtl').textContent = '🧱 TANTANGAN AR: ' + o.key;
+    $('cbDesc').textContent = o.text;
+    $('cbPts').textContent = 'Batas 5 detik · +' + o.pts + ' poin + ⭐ bintang' +
+      (camReady ? '' : ' · (tanpa kamera: tekan tombol ✔ di bawah)');
+    $('challengeBanner').hidden = false;
+    if (!camReady) renderObstacleButtons();
+    $('btnSkip').hidden = false;
+  }
+
+  function renderObstacleButtons() {
+    let bar = $('obsBtns');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'obsBtns';
+      bar.style.cssText = 'position:fixed;left:50%;top:56%;transform:translate(-50%,-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center;z-index:48';
+      gameScreen.appendChild(bar);
+    }
+    bar.innerHTML = '';
+    players.forEach((p) => {
+      const b = document.createElement('button');
+      b.className = 'tinyBtn'; b.style.borderColor = p.color; b.style.pointerEvents = 'auto';
+      b.textContent = '✔ ' + p.name + ' sudah!';
+      b.addEventListener('click', () => obstacleSuccess(p.idx));
+      bar.appendChild(b);
+    });
+  }
+
+  function clearObstacleButtons() { const b = $('obsBtns'); if (b) b.remove(); }
+
+  function updateObstacle(dt) {
+    if (!obs || obs.done) return;
+    obs.left -= dt;
+    $('cbPts').textContent = 'Tinggal ' + Math.max(0, obs.left).toFixed(1) + ' detik · +' + obs.def.pts + ' poin';
+    for (const h of handsNow) {
+      obs.minX = Math.min(obs.minX, h.x); obs.maxX = Math.max(obs.maxX, h.x);
+      obs.minY = Math.min(obs.minY, h.y); obs.maxY = Math.max(obs.maxY, h.y);
+    }
+    obs.nHands = Math.max(obs.nHands, handsNow.length);
+    let ok = false, who = -1;
+    if (obs.def.need === 'wall' && obs.nHands >= 2 && obs.minY < 0.4) { ok = true; }
+    if (obs.def.need === 'dodge' && (obs.maxX - obs.minX) > 0.45) { ok = true; }
+    if (obs.def.need === 'jump' && obs.minY < 0.35 && obs.maxY > 0.62) { ok = true; }
+    if (ok) { obstacleSuccess(who); return; }
+    if (obs.left <= 0) {
+      obs.done = true;
+      $('cbTtl').textContent = '⌛ TANTANGAN GAGAL';
+      $('cbDesc').textContent = 'Gerakan belum terbaca — tidak apa, lanjut!';
+      $('cbPts').textContent = '';
+      later(() => { $('challengeBanner').hidden = true; clearObstacleButtons(); players.forEach((p) => { p.answered = 0; }); qIdx++; loadQuestion(); }, 900);
+    }
+  }
+
+  function obstacleSuccess(pIdx) {
+    if (!obs || obs.done) return;
+    obs.done = true;
+    const list = pIdx >= 0 ? [players[pIdx]] : players;
+    list.forEach((p) => { if (p) { p.score += obs.def.pts; p.stars++; } });
+    $('cbTtl').textContent = '⭐ OBSTACLE LEWAT!';
+    $('cbDesc').textContent = (pIdx >= 0 ? players[pIdx].name : 'Semua pemain') + ' dapat +' + obs.def.pts + ' poin';
+    $('cbPts').textContent = 'Makanan bintang ⭐ diamankan!';
+    confetti(40);
+    renderScoreBar(); renderZoneBar();
+    later(() => { $('challengeBanner').hidden = true; clearObstacleButtons(); players.forEach((p) => { p.answered = 0; }); qIdx++; loadQuestion(); }, 1200);
+  }
+
+  // ---------- BAGIAN 13: POWER MOVE (langkah 11) ----------
+  function startPower() {
+    const p = players[pendingPower];
+    powerUses++; pendingPower = -1;
+    phase = 'power';
+    bubbles.length = 0;
+    power = { p: p, left: 4, hold: 0, touchHold: false, done: false };
+    $('cbTtl').textContent = '⚡ POWER MOVE!';
+    $('cbDesc').textContent = 'Angkat KEDUA tangan tinggi selama 1 detik!';
+    $('cbPts').textContent = 'Hadiah +100 POIN untuk ' + (p ? p.name : 'pemain');
+    $('challengeBanner').hidden = false;
+    if (!camReady) renderPowerButton();
+  }
+
+  function renderPowerButton() {
+    let bar = $('pwrBtn');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'pwrBtn';
+      bar.style.cssText = 'position:fixed;left:50%;top:58%;transform:translate(-50%,-50%);z-index:48';
+      gameScreen.appendChild(bar);
+    }
+    bar.innerHTML = '';
+    const b = document.createElement('button');
+    b.className = 'holdBtn';
+    b.textContent = '✋ TAHAN DI SINI 1 DETIK';
+    const on = () => { if (power) power.touchHold = true; };
+    const off = () => { if (power) power.touchHold = false; };
+    b.addEventListener('pointerdown', on);
+    b.addEventListener('pointerup', off);
+    b.addEventListener('pointerleave', off);
+    b.addEventListener('pointercancel', off);
+    b.style.pointerEvents = 'auto';
+    bar.appendChild(b);
+  }
+
+  function updatePower(dt) {
+    if (!power || power.done) return;
+    power.left -= dt;
+    const bothHigh = handsNow.length >= 2 && handsNow.every((h) => h.y < 0.38);
+    if (bothHigh || power.touchHold) power.hold += dt; else power.hold = Math.max(0, power.hold - dt * 1.5);
+    $('cbPts').textContent = power.hold >= 1 ? 'TERPENUHI!'
+      : 'Tahan… ' + (Math.min(1, power.hold) * 100).toFixed(0) + '% · sisa ' + Math.max(0, power.left).toFixed(1) + 's';
+    if (power.hold >= 1) { powerSuccess(); return; }
+    if (power.left <= 0) {
+      power.done = true;
+      $('cbTtl').textContent = '⚡ POWER MOVE LUPUT';
+      $('cbDesc').textContent = 'Sedikit lagi! Lanjut ke soal berikutnya.';
+      $('cbPts').textContent = '';
+      later(powerNext, 900);
+    }
+  }
+
+  function powerSuccess() {
+    power.done = true;
+    const p = power.p;
+    if (p) { p.score += 100; p.stars++; }
+    $('cbTtl').textContent = '⚡ POWER MOVE BERHASIL!';
+    $('cbDesc').textContent = '+100 POIN untuk ' + (p ? p.name : '');
+    $('cbPts').textContent = 'COMBO aktif: x' + (p ? Math.min(p.combo, 5) : 1);
+    confetti(60);
+    renderScoreBar(); renderZoneBar();
+    later(powerNext, 1200);
+  }
+
+  function powerNext() {
+    $('challengeBanner').hidden = true;
+    const pb = $('pwrBtn'); if (pb) pb.remove();
+    players.forEach((p) => { p.answered = 0; });
+    qIdx++;
+    loadQuestion();
+  }
+
+  // ---------- BAGIAN 14: FINAL BOSS (langkah 12) ----------
+  function startBoss() {
+    bossMode = true; bossHp = 3; bossLeft = 30;
+    phase = 'boss';
+    bubbles.length = 0;
+    $('cbTtl').textContent = '👹 FINAL BOSS — PENJAGA ILMU';
+    $('cbDesc').textContent = 'HP 3 ❤️❤️❤️ · Jawab 3 soal benar untuk mengalahkannya!';
+    $('cbPts').textContent = 'Salah / waktu habis = waktu boss −5 detik';
+    $('challengeBanner').hidden = false;
+    renderScoreBar();
+    later(() => { $('challengeBanner').hidden = true; bossQuestion(); }, 2200);
+  }
+
+  function bossQuestion() {
+    if (bossHp <= 0) { bossVictory(); return; }
+    if (bossLeft <= 0) { bossDefeat(); return; }
+    if (qIdx >= setList.length) {
+      // perpanjang bank soal dengan acakan baru untuk soal boss
+      const pool = questions.slice();
+      for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+      for (let i = 0; i < 3; i++) setList.push({ q: pool[i % pool.length], kind: 'boss' });
+    }
+    currentQ = setList[qIdx].q;
+    locked = false;
+    ansLeft = Math.min(ansSecTotal, bossLeft);
+    phase = 'boss';
+    hoverInfo = players.map(() => ({ b: null, t: 0 }));
+    makeBubbles(currentQ, 'boss');
+    updateHeader();
+  }
+
+  function nextBossStep() {
+    if (bossHp <= 0) { bossVictory(); return; }
+    bossLeft -= 0.2;
+    qIdx++;
+    bossQuestion();
+  }
+
+  function bossVictory() {
+    bossMode = false; bossDone = true; bossWin = true;
+    players.forEach((p) => { p.score += 200; p.stars += 2; });
+    confetti(180);
+    $('bossWinTitle').textContent = '👑 FINAL BOSS KALAH!';
+    $('bossWinText').innerHTML = 'Penaga Ilmu tumbang! Bonus <b>+200</b> untuk setiap pemain.' +
+      '<br><span class="muted">Kerja sama yang hebat! 🎉</span>';
+    $('bossWinOverlay').hidden = false;
+    renderScoreBar(); renderZoneBar();
+    bubbles.length = 0;
+    later(() => { $('bossWinOverlay').hidden = true; endGame(); }, 2600);
+  }
+
+  function bossDefeat() {
+    bossMode = false; bossDone = true;
+    $('bossWinTitle').textContent = '💀 BOSS BERTAHAN';
+    $('bossWinText').innerHTML = 'Waktu laga boss habis — masih tersisa <b>' + bossHp + '</b> ❤️. ' +
+      'Tidak ada bonus, tapi semangat tetap jalan!';
+    $('bossWinOverlay').hidden = false;
+    bubbles.length = 0;
+    later(() => { $('bossWinOverlay').hidden = true; endGame(); }, 2000);
+  }
+
+  // ---------- BAGIAN 15: LOOP UTAMA (delta waktu) ----------
+  function startLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    lastTs = performance.now();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function loop(ts) {
+    const dtRaw = Math.max(0, (ts - lastTs) / 1000);
+    lastTs = ts;
+    const dt = paused ? 0 : Math.min(0.05, dtRaw);
+
+    if (dt > 0) {
+      if (phase !== 'handtest' && !bossMode) {
+        // timer global laga (bukan asumsi interval)
+        if (phase === 'question' || phase === 'obstacle' || phase === 'power' || phase === 'feedback') {
+          matchLeftSec -= dt;
+          if (matchLeftSec <= 0) { matchLeftSec = 0; stopAll(); endGame(); return; }
+        }
+      }
+      if (bossMode && phase !== 'feedback') {
+        bossLeft -= dt;
+        if (bossLeft <= 0) { bossLeft = 0; hideResult(); bossDefeat(); }
+      }
+      if (phase === 'question' || phase === 'boss') {
+        ansLeft -= dt;
+        if (ansLeft <= 0) { ansLeft = 0; timeUp(); }
+      }
+      if (phase === 'feedback' && resTimer > 0) {
+        resTimer -= dt;
+        if (resTimer <= 0) { const fn = resNext; resNext = null; if (fn) fn(); }
+      }
+      if (phase === 'obstacle') updateObstacle(dt);
+      if (phase === 'power') updatePower(dt);
+      if (!$('calibOverlay').hidden) updateCalibration(dt);
+
+      updateBubbles(dt, ts);
+      updateSelection(dt);
+      updateParticles(dt);
+
+      // refresh HUD tiap ~0,15 detik saja
+      hudAcc += dtRaw;
+      if (hudAcc > 0.15) { hudAcc = 0; if (!$('gameScreen').hidden) updateHeader(); }
     }
     draw();
+    rafId = requestAnimationFrame(loop);
+  }
+  let hudAcc = 0;
 
-    rafId = requestAnimationFrame(gameLoop);
+  function stopLoop() { if (rafId) cancelAnimationFrame(rafId); rafId = 0; running = false; }
+  function stopAll() { stopLoop(); clearAllTimers(); }
+
+  // ---------- BAGIAN 16: JEDA / LEWATI / SELESAI ----------
+  function togglePause(force) {
+    if (!running) return;
+    paused = (typeof force === 'boolean') ? force : !paused;
+    $('pauseOverlay').hidden = !paused;
+    $('btnPause').textContent = paused ? '▶ Lanjut' : '⏸ Jeda';
   }
 
-  function updateScoreUI() {
-    hudP1Score.textContent = score1;
-    hudP2Score.textContent = score2;
+  function skipCurrent() {
+    if (phase === 'obstacle' && obs && !obs.done) { obs.left = 0.01; return; }
+    if (phase === 'power' && power && !power.done) { power.left = 0.01; return; }
+    if ((phase === 'question' || phase === 'boss') && !locked) { ansLeft = 0.01; $('btnSkip').hidden = true; }
   }
 
+  // LANGKAH 13-14 & 16: hasil akhir, leaderboard, podium, badge
   function endGame() {
-    gameEnded = true;
-    clearInterval(timerInterval);
-    cancelAnimationFrame(rafId);
-
-    if (camera && camera.stop) camera.stop();
-    const stream = videoEl.srcObject;
-    if (stream) stream.getTracks().forEach(t => t.stop());
-
-    let msg = '';
-    if (score1 > score2) msg = `🏆 ${p1Name} MENANG!`;
-    else if (score2 > score1) msg = `🏆 ${p2Name} MENANG!`;
-    else msg = '🤝 SERI!';
-    winnerText.textContent = msg;
-
-    $('endP1Name').textContent = p1Name;
-    $('endP2Name').textContent = p2Name;
-    $('endP1Score').textContent = score1;
-    $('endP2Score').textContent = score2;
-
-    gameScreen.hidden = true;
-    endScreen.hidden = false;
+    if (phase === 'ended') return;
+    phase = 'ended';
+    stopLoop();
+    clearAllTimers();
+    hideCalibUI(); $('countOverlay').hidden = true; $('resultOverlay').hidden = true;
+    $('challengeBanner').hidden = true; $('bossWinOverlay').hidden = true;
+    $('pauseOverlay').hidden = true; $('touchFallback').hidden = true;
+    $('calibStatus').textContent = '';
+    clearObstacleButtons();
+    const pb = $('pwrBtn'); if (pb) pb.remove();
+    paused = false;
+    gameScreen.hidden = true; endScreen.hidden = false;
+    stopCamera();                                  // hentikan kamera & MediaStream saat selesai
+    renderEnd();
   }
 
-  // ---------- CONTROLS ----------
-  btnStart.addEventListener('click', async () => {
-    statusMsg.textContent = '';
-    btnStart.disabled = true;
-    try {
-      await loadQuestions();
-      await startCamera();
-      startGame();
-    } catch (e) {
-      console.error(e);
-      statusMsg.textContent = 'Gagal memulai: ' + (e.message || 'pastikan izin kamera diberikan.');
-      btnStart.disabled = false;
-    }
-  });
+  function sortedPlayers() {
+    return players.slice().sort((a, b) => (b.score - a.score) || (b.correct - a.correct) || a.idx - b.idx);
+  }
 
-  $('btnPause').addEventListener('click', () => { paused = true; pauseOverlay.hidden = false; });
-  $('btnResume').addEventListener('click', () => { paused = false; pauseOverlay.hidden = true; lastTime = performance.now(); });
-  $('btnEnd').addEventListener('click', endGame);
-  $('btnRestart').addEventListener('click', () => {
-    endScreen.hidden = true;
+  function avgTime(p) { return p.timeCnt ? (p.timeSum / p.timeCnt) : 0; }
+
+  function renderEnd() {
+    const s = sortedPlayers();
+    const champ = s[0];
+    $('winnerBox').innerHTML = '🏆 ' + esc(champ ? champ.name : '-') + ' — ' + (champ ? champ.score : 0) + ' poin';
+
+    // Podium juara 1/2/3
+    const pod = $('podium');
+    pod.innerHTML = '';
+    const medal = ['🥇', '🥈', '🥉'];
+    s.slice(0, 3).forEach((p, i) => {
+      const d = document.createElement('div');
+      d.className = 'pod' + (i === 0 ? ' p1' : '');
+      d.style.borderColor = p.color;
+      d.innerHTML = '<div class="rk">' + medal[i] + '</div><div class="pnm" style="color:' + p.color + '">' +
+        esc(p.name) + '</div><div class="ppt">' + p.score + '</div>' +
+        '<div class="muted" style="font-size:13px">' + p.correct + ' benar · ' + p.wrong + ' salah · ⭐' + p.stars + '</div>';
+      pod.appendChild(d);
+    });
+
+    // Leaderboard (No, Tim, Skor, Benar, Salah)
+    const tb = $('lbBody');
+    tb.innerHTML = '';
+    s.forEach((p, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (i + 1) + '</td><td class="l" style="color:' + p.color + '">' + esc(p.name) +
+        '</td><td><b>' + p.score + '</b></td><td>' + p.correct + '</td><td>' + p.wrong + '</td>';
+      tb.appendChild(tr);
+    });
+
+    // Badge penghargaan tambahan
+    const bb = $('badgeBox');
+    bb.innerHTML = '';
+    const has = s.some((p) => p.answered > 0 || p.correct + p.wrong > 0);
+    const badges = [];
+    if (champ && champ.score > 0) badges.push(['🏆 Battle Champion', champ.name]);
+    const fast = s.filter((p) => p.timeCnt > 0).sort((a, b) => avgTime(a) - avgTime(b))[0];
+    if (fast) badges.push(['⚡ Fastest Thinker', fast.name + ' (' + avgTime(fast).toFixed(1) + 's)']);
+    const comb = s.slice().sort((a, b) => b.bestCombo - a.bestCombo)[0];
+    if (comb && comb.bestCombo >= 2) badges.push(['🔥 Combo Master', comb.name + ' (x' + Math.min(comb.bestCombo, 5) + ')']);
+    const brain = s.slice().sort((a, b) => b.correct - a.correct)[0];
+    if (brain && brain.correct > 0) badges.push(['🧠 Brain Master', brain.name + ' (' + brain.correct + ' benar)']);
+    const clean = s.filter((p) => p.correct >= 2 && p.wrong === 0)[0];
+    const acc = s.slice().sort((a, b) => (b.correct / Math.max(1, b.correct + b.wrong)) - (a.correct / Math.max(1, a.correct + a.wrong)))[0];
+    if (clean) badges.push(['🤚 Gesture Master', clean.name + ' (tanpa salah)']);
+    else if (acc && acc.correct > 0 && acc.correct / (acc.correct + acc.wrong) >= 0.75)
+      badges.push(['🤚 Gesture Master', acc.name + ' (' + Math.round(100 * acc.correct / (acc.correct + acc.wrong)) + '% akurat)']);
+    if (bossWin) badges.push(['👑 Boss Slayer', s.map((p) => p.name).join(' & ')]);
+    if (!badges.length) badges.push([has ? '💪 Peserta Aktif' : '📚 Ayo Coba Lagi', 'Belum ada penghargaan — coba mode lebih panjang!']);
+    badges.forEach((b) => {
+      const d = document.createElement('div');
+      d.className = 'badge';
+      d.innerHTML = esc(b[0]) + ' — <b>' + esc(b[1]) + '</b>';
+      bb.appendChild(d);
+    });
+  }
+
+  // Unduh rekap CSV
+  function downloadRecap() {
+    const s = sortedPlayers();
+    const rows = [['peringkat', 'nama', 'skor', 'benar', 'salah', 'combo tertinggi', 'waktu rata-rata (s)']];
+    s.forEach((p, i) => rows.push([i + 1, p.name, p.score, p.correct, p.wrong, Math.min(p.bestCombo, 5), avgTime(p).toFixed(1)]));
+    rows.push([]);
+    rows.push(['Mode', { solo: 'SOLO', b2: 'BATTLE 2', b3: 'BATTLE 3', b4: 'BATTLE 4', team: 'TEAM BATTLE' }[modeKey] || modeKey]);
+    rows.push(['Sumber soal', srcLabel]);
+    rows.push(['Final Boss', bossWin ? 'DITAKLUKKAN 👑' : 'bertahan / tidak tercapai']);
+    const csv = rows.map((r) => r.map((c) => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const d = new Date();
+    a.download = 'hasil-' + (gameSlug || 'gesture-battle') + '-' + d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) + '.csv';
+    document.body.appendChild(a); a.click();
+    later(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  }
+
+  function backToSetup() {
+    endScreen.hidden = true; gameScreen.hidden = true;
     setupScreen.hidden = false;
-    btnStart.disabled = false;
-    statusMsg.textContent = '';
+    phase = 'idle'; paused = false; running = false; bossMode = false;
+    bubbles.length = 0; particles.length = 0;
+    $('btnSkip').hidden = true;
+    hideResult();
+    clearAllTimers();
+    startCamera();                                 // siapkan kamera lagi untuk sesi berikutnya
+  }
+
+  // ---------- BAGIAN 17: UJI TANGAN (fitur kamera) ----------
+  function spawnHandTestTargets() {
+    bubbles.length = 0;
+    const zs = zones();
+    zs.forEach((z) => {
+      const zwPx = z.x1 - z.x0;
+      for (let i = 0; i < 3; i++) {
+        const r = clamp(zwPx * 0.13, 44, 90);
+        const x = z.x0 + zwPx * (0.22 + i * 0.28);
+        const y = H * (0.42 + (i % 2) * 0.22);
+        bubbles.push({
+          p: z.p, kind: 'test', letter: String(i + 1), text: 'UJI', correct: false,
+          x0: x, y: -r, ty: y, r: r, wob: rand(8, 16), wfreq: rand(0.8, 1.4), wph: rand(0, 6.28),
+          spd: rand(220, 320), dx: x, dy: y, popped: false, dwell: 0,
+          wrap: { lines: ['✋'], fs: clamp(r * 0.75, 18, 40) }
+        });
+      }
+    });
+  }
+
+  async function openHandTest() {
+    if (!camReady && !videoStream) { try { await startCamera(); } catch (e) { /* sudah di tangani startCamera */ } }
+    $('handTestOverlay').hidden = false;
+    phase = 'handtest';
+    bubbles.length = 0;
+    spawnHandTestTargets();
+    $('htStatus').textContent = camReady
+      ? (handsNow.length ? 'Tangan terdeteksi ✅ — arahkan telunjuk ke gelembung.' : 'Kamera aktif, tangan belum terdeteksi — coba 🪞 cermin / kalibrasi.')
+      : 'Kamera tidak aktif — sentuh gelembung untuk menguji area & respons.';
+    if (!running) { running = true; startLoop(); }
+  }
+
+  function closeHandTest() {
+    $('handTestOverlay').hidden = true;
+    bubbles.length = 0;
+    phase = gameScreen.hidden ? 'idle' : 'question';
+    if (!gameScreen.hidden) return;
+    stopLoop();
+  }
+
+  // ---------- BAGIAN 18: KEJADIAN (EVENT) ----------
+  $('modeSel').addEventListener('change', renderNameInputs);
+  $('teamCountSel').addEventListener('change', renderNameInputs);
+  $('btnStart').addEventListener('click', () => { startGame(); });
+  $('btnOkTouch').addEventListener('click', () => {
+    $('touchFallback').hidden = true;
+    if (pendingStart) { pendingStart = false; calib = null; beginCountdown(); }
+  });
+  $('btnCalibSkip').addEventListener('click', () => { calib = null; hideCalibUI(); });
+  $('btnCalibAgain').addEventListener('click', () => { hideCalibUI(); startCalibration(); });
+
+  $('btnCam').addEventListener('click', async () => {
+    await listCameras();
+    if (!camDevices.length) { camStatus('⚠️ Tidak ada perangkat kamera terdeteksi — mode sentuh.', false); return; }
+    camDeviceIdx = (camDeviceIdx + 1) % camDevices.length;
+    stopCamera();
+    camStatus('🎥 Mengganti ke kamera ' + (camDeviceIdx + 1) + '/' + camDevices.length + '…', true);
+    await startCamera();
+    if (camReady) $('modeChip').textContent = '🫵 Mode: Menunjuk (dwell 0,6 detik)';
   });
 
-  window.addEventListener('resize', resizeCanvas);
+  $('btnMirror').addEventListener('click', () => {
+    mirrorOn = !mirrorOn;
+    $('btnMirror').textContent = '🪞 Cermin Video: ' + (mirrorOn ? 'ON' : 'OFF');
+    videoEl.classList.toggle('nomirror', !mirrorOn);   // koordinat tangan ikut dibalik (dispX)
+  });
 
-  // Keyboard fallback (spacebar = pause)
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && !gameScreen.hidden && !gameEnded) {
-      paused = !paused;
-      pauseOverlay.hidden = !paused;
-      if (!paused) lastTime = performance.now();
+  $('btnHandTest').addEventListener('click', openHandTest);
+  $('btnCloseHT').addEventListener('click', closeHandTest);
+  $('btnBodyTest').addEventListener('click', () => { $('bodyOverlay').hidden = false; });
+  $('btnOkBody').addEventListener('click', () => { $('bodyOverlay').hidden = true; });
+
+  $('btnHelpSetup').addEventListener('click', () => { $('helpPanel').hidden = false; $('btnSkipQ').hidden = true; });
+  $('btnHelpGame').addEventListener('click', () => {
+    const open = $('helpPanel').hidden;
+    $('helpPanel').hidden = !open;
+    $('btnSkipQ').hidden = !open;
+    if (open) togglePause(true);
+  });
+  $('btnCloseHelp').addEventListener('click', () => {
+    $('helpPanel').hidden = true; $('btnSkipQ').hidden = true;
+    if (running && !gameScreen.hidden) togglePause(false);
+  });
+  $('btnSkipQ').addEventListener('click', () => { $('helpPanel').hidden = true; skipCurrent(); if (running) togglePause(false); });
+
+  $('btnPause').addEventListener('click', () => togglePause());
+  $('btnResume').addEventListener('click', () => togglePause(false));
+  $('btnFinish').addEventListener('click', () => { paused = false; $('pauseOverlay').hidden = true; endGame(); });
+  $('btnFinishPause').addEventListener('click', () => { paused = false; $('pauseOverlay').hidden = true; endGame(); });
+  $('btnSkip').addEventListener('click', skipCurrent);
+  $('btnAgain').addEventListener('click', backToSetup);
+  $('btnDownload').addEventListener('click', downloadRecap);
+
+  // Sentuh / klik langsung = pilih gelembung (fallback penuh tanpa kamera)
+  cv.addEventListener('pointerdown', (ev) => {
+    const rect = cv.getBoundingClientRect();
+    const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+    const zw = W / Math.max(1, players.length);
+    const idx = clamp(Math.floor(px / Math.max(1, zw)), 0, Math.max(0, players.length - 1));
+    cursors[idx] = { x: px, y: py, on: true, src: 'pointer' };
+    let b = null;
+    if (phase === 'boss' || phase === 'handtest') {
+      for (const bb of bubbles) if (!bb.popped && Math.hypot(px - bb.dx, py - bb.dy) <= bb.r * 1.1) { b = bb; break; }
+      if (b) selectBubble(b, idx, true);
+      return;
     }
+    for (const bb of bubbles) {
+      if (!bb.popped && Math.hypot(px - bb.dx, py - bb.dy) <= bb.r * 1.1) { b = bb; break; }
+    }
+    if (b) {
+      const owner = b.p >= 0 ? b.p : idx;
+      selectBubble(b, owner, true);
+      return;
+    }
+    draw();
   });
+
+  cv.addEventListener('pointermove', (ev) => {
+    if (camReady) return;                            // kamera aktif → kursor dari tangan
+    const rect = cv.getBoundingClientRect();
+    const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+    const zw = W / Math.max(1, players.length);
+    const idx = clamp(Math.floor(px / Math.max(1, zw)), 0, Math.max(0, players.length - 1));
+    cursors[idx] = { x: px, y: py, on: true, src: 'pointer' };
+  });
+
+  window.addEventListener('resize', () => {
+    resize();
+    if (!$('calibOverlay').hidden) updateCalibHint();
+  });
+
+  window.addEventListener('pagehide', () => { stopAll(); stopCamera(); });
+
+  // ---------- BAGIAN 19: INIT ----------
+  // Kamera TIDAK dipaksa minta izin saat halaman dibuka: izin diminta lewat tindakan pengguna
+  // (tekan ▶ MULAI atau ✋ Uji Tangan). Bila izin sudah pernah diberikan, kamera aktif otomatis.
+  async function probeCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      touchOnly = true;
+      camStatus('⚠️ Browser tidak mendukung akses kamera — game memakai mode sentuh.', false);
+      $('modeChip').textContent = '👆 Mode: Sentuh / Klik';
+      return;
+    }
+    camStatus('🎥 Kamera belum aktif — tekan ▶ MULAI / ✋ Uji Tangan untuk memintanya.', true);
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        const st = await navigator.permissions.query({ name: 'camera' });
+        if (st.state === 'granted') { await listCameras(); await startCamera(); }
+      }
+    } catch (e) { /* query tidak didukung (mis. Firefox): biarkan diminta saat MULAI */ }
+  }
+
+  resize();
+  renderNameInputs();
+  readConfig();
+  renderScoreBar();
+  loadQuestions();
+  probeCamera();
 })();
 </script>
 </body>

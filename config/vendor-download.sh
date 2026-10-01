@@ -26,5 +26,9 @@ echo "▶ Mengunduh model pose landmarker lite..."
 curl -fL -o "$DIR/pose_landmarker_lite.task" \
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
 
+echo "▶ Mengunduh model hand landmarker (untuk Motion Quest AR / Gesture Battle)..."
+curl -fL -o "$DIR/hand_landmarker.task" \
+  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+
 echo "✅ Selesai. Isi folder vendor:"
 ls -lh "$DIR" "$WASM_DIR"

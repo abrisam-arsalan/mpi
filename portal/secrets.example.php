@@ -13,8 +13,12 @@ define('MPI_DB_NAME', 'mpi_db');
 define('MPI_DB_USER', 'mpi_user');
 define('MPI_DB_PASS', 'GANTI_PASSWORD_KUAT');
 
-// ---- Google Gemini (AI Studio) ----
-// Kosongkan bila belum mau pakai fitur "Buat Soal dengan AI".
+// ---- Google Gemini — FITUR AI SEDANG DINONAKTIFKAN ----
+// Pembuatan soal otomatis dengan AI sudah dihapus dari panel admin.
+// Soal dibuat manual lewat editor Bank Soal atau impor CSV.
+// Konstanta ini dibiarkan agar secrets.php lama tetap aman dimuat
+// (config.php memberi nilai default bila konstanta tidak ada), dan
+// siap dipakai lagi bila fitur AI diaktifkan kembali di masa depan.
 define('MPI_GEMINI_KEY', '');
 define('MPI_GEMINI_MODEL', 'gemini-2.0-flash');
 

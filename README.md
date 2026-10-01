@@ -4,20 +4,42 @@ Media Pembelajaran Interaktif (MPI) untuk Interactive Flat Panel (IFP), diakses 
 **https://mpi.smp5tegal.sch.id**.
 
 ## Fitur
-- **Beranda (menu)** berisi 5 game edukasi.
+- **Beranda (menu)** berisi 9 game edukasi.
 - **Login guru** + kelola game & bank soal.
-- **Bank soal terpusat** dengan 4 format soal.
-- **Buat soal otomatis** dengan AI (Google Gemini).
+- **Bank soal terpusat** dengan beberapa format soal.
+- **Cara membuat soal**: manual lewat editor Bank Soal, atau **impor CSV** dari template yang disediakan.
+  (Pembuatan soal otomatis dengan AI **sedang dinonaktifkan**.)
 - **API soal** (`api/questions.php`) dipakai semua game.
 
-## 5 Game
-| Game | Tipe soal |
-|---|---|
-| 📷 Kamera Benar-Salah | A/B (deteksi pose via kamera) |
-| 💰 Who Wants To Be Millionaire | Pilihan ganda 4 opsi (15 level) |
-| 💯 Kuis Famili 100 | Jawaban populer + poin (hingga 6 tim) |
-| ⚔️ Clash of Champions | Pilihan ganda 4 opsi (duel 2 tim) |
-| 🙌 Gesture Battle | Kata + kategori (tebak gerakan) |
+## Format impor CSV
+Unduh template dari admin (`?dl=template`). Kolom:
+
+```
+soal;opsiA;opsiB;opsiC;opsiD;kunci;penjelasan
+```
+
+- `kunci` boleh huruf `A`/`B`/`C`/`D` **atau** teks persis opsi yang benar.
+- Format lama khusus game A/B juga masih dikenali: `soal;opsiA;opsiB;kunci;penjelasan`.
+- Pemisah bisa `;` atau `,`. Baris pertama berupa judul kolom akan dilewati.
+
+## 9 Game
+| Game | Slug | Tipe | Cara main singkat |
+|---|---|---|---|
+| 📷 Kamera Benar-Salah | `kamera-benar-salah` | A/B | Siswa berdiri di zona A/B, kamera mendeteksi posisi. |
+| 💯 Family 100 | `famili-100` | Jawaban + poin | Dua tim tebak 5 jawaban survei; 3X = giliran berpindah. |
+| ⚔️ Class of Champions | `clash-of-champions` | PG 4 opsi | Papan 40 kotak, rebutan, kirim jawaban ≤10 detik, peringkat otomatis. |
+| 🙌 Motion Quest AR (Gesture Battle) | `gesture-battle` | PG 4 opsi | Arahkan tangan ke gelembung jawaban yang turun; benar meletus hijau, salah merah. |
+| 💰 Who Wants To Be Millionaire | `millionaire` | PG 4 opsi | 15 tingkat menuju 1 miliar, 3 bantuan, titik aman tingkat 5 & 10. |
+| 🏎️ Edu Racing | `edu-racing` | PG 4 opsi | Rebutan soal; jawaban benar membuat mobil melaju + poin. |
+| 🎁 Mystery Box | `mystery-box` | PG 4 opsi | 40 kotak rahasia, pilih level Mudah/Sedang/Sulit, 30 detik. |
+| ⭕ XXO Edukasi | `xxo-edukasi` | PG 4 opsi | Rebut kotak, jawab soal, susun 3 kotak berurutan, nyawa & power-up. |
+| 🐍 Snake Quiz | `snake-quiz` | PG 4 opsi | Dua ular satu arena (WASD vs panah), kejar makanan, jawab soal. |
+
+> Game berkamera (`kamera-benar-salah`, `gesture-battle`) memproses video **hanya di perangkat** — tidak ada data yang dikirim ke server.
+
+## Migrasi server
+- Upgrade dari 5 game lama: `cd /var/www/mpi/portal && sudo mysql mpi_db < migration-v3.sql`
+- Upgrade skema lama (mapel & peran guru): `sudo mysql mpi_db < migration-v2.sql`
 
 ## Struktur repo
 ```
@@ -32,14 +54,25 @@ mpi-portal/          ← root repo = /var/www/mpi/ di server
     ├── config.php
     ├── index.php / play.php / login.php / logout.php / admin.php
     ├── create-admin.php
-    ├── db.sql
+    ├── db.sql                     ← seed 9 game (instalasi baru)
+    ├── migration-v2.sql           ← upgrade skema lama
+    ├── migration-v3.sql           ← tambah 4 game baru + nama/deskripsi baru
     ├── secrets.example.php
     ├── api/questions.php
     ├── assets/style.css
-    └── game/*.html
+    └── game/                      ← 1 file HTML mandiri per game
+        ├── kamera-benar-salah.html
+        ├── famili-100.html
+        ├── clash-of-champions.html
+        ├── gesture-battle.html
+        ├── millionaire.html
+        ├── edu-racing.html
+        ├── mystery-box.html
+        ├── xxo-edukasi.html
+        └── snake-quiz.html
 ```
 
-> **Penting:** file `secrets.php` (berisi password DB & API key Gemini) **tidak
+> **Penting:** file `secrets.php` (berisi password DB) **tidak
 > di-commit** (lihat `.gitignore`). File itu dibuat manual di server pada
 > `/var/www/mpi/secrets.php` (di luar webroot).
 
