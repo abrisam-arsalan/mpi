@@ -212,26 +212,9 @@
   <div class="mobilLintas">🏎️💨 🚗 🚙 💨</div>
   <h1>🏁 EDU RACING</h1>
   <p class="tagline">SIAPA CEPAT, DIA MELAJU!</p>
-  <div class="menuBtns">
-    <button id="btnStartRace" class="menuBtn utama">🏁 START RACE</button>
-    <button id="btnBukaPengaturan" class="menuBtn">⚙️ PENGATURAN</button>
-    <a id="btnBankSoal" class="menuBtn" href="../admin.php?tab=soal" target="_blank" rel="noopener">📚 BANK SOAL</a>
-    <button id="btnCaraBermain" class="menuBtn">📖 CARA BERMAIN</button>
-    <button id="btnPrestasi" class="menuBtn">🏅 PRESTASI</button>
-  </div>
-  <div class="barisIkon">
-    <button id="btnSfxSetup" class="ikonBtn" title="Efek suara">🔊</button>
-    <button id="btnMusikSetup" class="ikonBtn" title="Suara mesin">🎵</button>
-    <button id="btnFullscreenSetup" class="ikonBtn" title="Layar penuh">⛶</button>
-  </div>
-  <div class="muted" id="srcName">Memuat soal...</div>
-  <div class="muted kecil">Lomba balap kuis · 2–4 tim · ditampilkan di layar IFP</div>
-</div>
-
-<!-- ==================== MODAL : PENGATURAN PERMAINAN ==================== -->
-<div id="pengaturanModal" class="modalLayer" hidden>
-  <div class="modal panel">
-    <h2>⚙️ PENGATURAN PERMAINAN</h2>
+  <!-- DATA AWAL: diisi guru sebelum balapan dimulai -->
+  <div id="panelDataAwal" class="panel" style="width:min(720px,94%);text-align:left;max-height:44vh;overflow:auto">
+    <h2 style="margin:0 0 10px;font-size:clamp(15px,2vw,20px);color:var(--gold)">📝 DATA AWAL PERMAINAN</h2>
     <div class="baris"><label>Jumlah Tim</label>
       <select id="cfgJumlahTim"><option value="2">2 tim</option><option value="3">3 tim</option><option value="4" selected>4 tim</option></select>
     </div>
@@ -254,6 +237,28 @@
     <div class="baris"><label>Mode Permainan</label>
       <select id="cfgMode"><option value="classic" selected>CLASSIC</option><option value="advanced">ADVANCED</option></select>
     </div>
+  </div>
+  <div class="menuBtns">
+    <button id="btnStartRace" class="menuBtn utama">🏁 START RACE</button>
+    <button id="btnBukaPengaturan" class="menuBtn">⚙️ PENGATURAN</button>
+    <a id="btnBankSoal" class="menuBtn" href="../admin.php?tab=soal" target="_blank" rel="noopener">📚 BANK SOAL</a>
+    <button id="btnCaraBermain" class="menuBtn">📖 CARA BERMAIN</button>
+    <button id="btnPrestasi" class="menuBtn">🏅 PRESTASI</button>
+  </div>
+  <div class="barisIkon">
+    <button id="btnSfxSetup" class="ikonBtn" title="Efek suara">🔊</button>
+    <button id="btnMusikSetup" class="ikonBtn" title="Suara mesin">🎵</button>
+    <button id="btnFullscreenSetup" class="ikonBtn" title="Layar penuh">⛶</button>
+  </div>
+  <div class="muted" id="srcName">Memuat soal...</div>
+  <div class="muted kecil">Lomba balap kuis · 2–4 tim · ditampilkan di layar IFP</div>
+</div>
+
+<!-- ==================== MODAL : PENGATURAN PERMAINAN ==================== -->
+<div id="pengaturanModal" class="modalLayer" hidden>
+  <div class="modal panel">
+    <h2>⚙️ PENGATURAN LANJUTAN</h2>
+    <p class="muted kecil">Data awal permainan (jumlah tim, nama tim, jumlah soal, lintasan, dan waktu) diatur di halaman pembuka.</p>
     <div id="blokAdvanced" hidden>
       <h3>🚀 FITUR ADVANCED</h3>
       <div id="advGrid" class="advGrid"></div>
