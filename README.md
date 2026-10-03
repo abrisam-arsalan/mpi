@@ -4,12 +4,19 @@ Media Pembelajaran Interaktif (MPI) untuk Interactive Flat Panel (IFP), diakses 
 **https://mpi.smp5tegal.sch.id**.
 
 ## Fitur
-- **Beranda (menu)** berisi 9 game edukasi.
-- **Login guru** + kelola game & bank soal.
+- **Beranda (menu)** berisi 9 game edukasi (admin bisa **on/off per game**).
+- **Alur main**: klik game → **halaman setup** pilih kelas (7/8/9) & sumber soal → main.
+  Game yang belum punya soal tidak akan jalan sebelum soal dipilih — tidak ada permainan kosong di depan kelas.
+- **Soal demo** bawaan di setiap game, bisa dimainkan **tanpa akun guru** (tombol "Mulai — Soal Demo").
+- **Peran**:
+  - **Admin** — mengatur semua permainan (on/off, edit game), pengguna, dan semua bank soal.
+  - **Guru** — hanya mengatur **bank soal & mata pelajaran**; kelas 7/8/9 dipakai sebagai pemisah materi (bukan rombel).
 - **Bank soal terpusat** dengan beberapa format soal.
 - **Cara membuat soal**: manual lewat editor Bank Soal, atau **impor CSV** dari template yang disediakan.
   (Pembuatan soal otomatis dengan AI **sedang dinonaktifkan**.)
-- **API soal** (`api/questions.php`) dipakai semua game.
+- **API soal** (`api/questions.php`) dipakai semua game — pilihan guru dari halaman setup
+  (sumber demo/guru, kelas, mapel) disimpan di session, jadi file game tidak perlu diubah.
+  Bila soal guru belum tersedia, API otomatis **fallback ke soal demo** supaya permainan tetap jalan.
 
 ## Format impor CSV
 Unduh template dari admin (`?dl=template`). Kolom:
@@ -38,6 +45,7 @@ soal;opsiA;opsiB;opsiC;opsiD;kunci;penjelasan
 > Game berkamera (`kamera-benar-salah`, `gesture-battle`) memproses video **hanya di perangkat** — tidak ada data yang dikirim ke server.
 
 ## Migrasi server
+- Alur baru pilih soal (kolom `kelas` & `is_demo` + seed soal demo): `cd /var/www/mpi/portal && sudo mysql mpi_db < migration-v4.sql`
 - Upgrade dari 5 game lama: `cd /var/www/mpi/portal && sudo mysql mpi_db < migration-v3.sql`
 - Upgrade skema lama (mapel & peran guru): `sudo mysql mpi_db < migration-v2.sql`
 
@@ -57,6 +65,7 @@ mpi-portal/          ← root repo = /var/www/mpi/ di server
     ├── db.sql                     ← seed 9 game (instalasi baru)
     ├── migration-v2.sql           ← upgrade skema lama
     ├── migration-v3.sql           ← tambah 4 game baru + nama/deskripsi baru
+    ├── migration-v4.sql           ← kolom kelas/is_demo + seed soal demo
     ├── secrets.example.php
     ├── api/questions.php
     ├── assets/style.css

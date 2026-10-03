@@ -1,7 +1,10 @@
 <?php
 require __DIR__ . '/config.php';
 try {
-    $games = mpi_db()->query('SELECT * FROM mpi_games WHERE aktif = 1 ORDER BY urutan, id')->fetchAll();
+    $games = mpi_db()->query("SELECT g.*,
+        (SELECT COUNT(*) FROM mpi_soal s WHERE s.game_id = g.id AND s.is_demo = 1) AS demo_count,
+        (SELECT COUNT(*) FROM mpi_soal s WHERE s.game_id = g.id AND s.is_demo = 0) AS guru_count
+        FROM mpi_games g WHERE g.aktif = 1 ORDER BY g.urutan, g.id")->fetchAll();
 } catch (Throwable $ex) {
     $games = [];
     $err = $ex->getMessage();
@@ -44,12 +47,14 @@ $user = mpi_user();
   <?php if (!$games): ?>
     <p class="empty">Belum ada game. Silakan <a href="login.php">login</a> lalu tambahkan game.</p>
   <?php else: ?>
+    <div class="alert ok">Klik game, lalu pilih <b>kelas</b> dan <b>sumber soal</b> sebelum bermain. Tanpa akun guru? Pilih <b>Soal Demo</b>.</div>
     <div class="grid">
       <?php foreach ($games as $g): ?>
       <a class="card" href="play.php?slug=<?= e($g['slug']) ?>">
         <div class="icon"><?= e($g['icon']) ?></div>
         <div class="nama"><?= e($g['nama']) ?></div>
         <div class="desc"><?= e($g['deskripsi']) ?></div>
+        <div><span class="pill"><?= (int) $g['demo_count'] ?> demo</span> <span class="pill"><?= (int) $g['guru_count'] ?> soal guru</span></div>
         <div class="play">▶ Mainkan</div>
       </a>
       <?php endforeach; ?>

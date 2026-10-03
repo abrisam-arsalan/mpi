@@ -1,6 +1,12 @@
 <?php
 require __DIR__ . '/config.php';
-if (mpi_user()) { mpi_redirect('admin.php'); }
+
+// Tujuan setelah login: halaman setup game (play.php?…) atau panel admin.
+// Whitelist sederhana — hanya redirect relatif dalam portal, tolak // atau http.
+$next = (string) ($_GET['next'] ?? '');
+if (strncmp($next, 'play.php', 8) !== 0 && strncmp($next, 'admin.php', 9) !== 0) { $next = 'admin.php'; }
+
+if (mpi_user()) { mpi_redirect($next); }
 
 // ------------------------------------------------------------
 // Pembatas percobaan login (anti brute-force) berbasis session.
@@ -32,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['login_kunci_sampai'] = 0;
             session_regenerate_id(true);
             $_SESSION['uid'] = (int) $row['id'];
-            mpi_redirect('admin.php');
+            mpi_redirect($next);
         }
         $_SESSION['login_gagal']++;
         if ($_SESSION['login_gagal'] >= $MAX_GAGAL) {

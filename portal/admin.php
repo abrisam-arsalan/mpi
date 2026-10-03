@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $redirect = $_POST['redirect'] ?? ('admin.php?tab=' . urlencode($tab));
     try {
-        $adminOnly = ['game_save', 'game_delete', 'user_save', 'user_delete'];
+        $adminOnly = ['game_save', 'game_delete', 'game_toggle', 'user_save', 'user_delete'];
         if (!$isAdmin && in_array($action, $adminOnly, true)) {
             throw new Exception('Akses ditolak — hanya admin yang boleh melakukan aksi ini.');
         }
@@ -108,6 +108,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } elseif ($action === 'game_delete') {
             $st = $db->prepare('DELETE FROM mpi_games WHERE id = ?'); $st->execute([(int) $_POST['id']]); mpi_flash('Game dihapus.');
+        } elseif ($action === 'game_toggle') {
+            // On/off permainan: game nonaktif hilang dari beranda & ditolak play.php.
+            $st = $db->prepare('UPDATE mpi_games SET aktif = 1 - aktif WHERE id = ?'); $st->execute([(int) $_POST['id']]); mpi_flash('Status game diperbarui.');
         } elseif ($action === 'mapel_save') {
             $id = (int) ($_POST['id'] ?? 0); $nama = trim($_POST['nama'] ?? '');
             if ($nama === '') { throw new Exception('Nama mata pelajaran wajib diisi.'); }
@@ -120,6 +123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $game_id = (int) $_POST['game_id'];
             $st = $db->prepare('SELECT tipe FROM mpi_games WHERE id = ?'); $st->execute([$game_id]); $gt = $st->fetchColumn() ?: 'benar_salah';
             $mapel_id = (int) ($_POST['mapel_id'] ?? 0);
+            $kelas = in_array($_POST['kelas'] ?? '', ['7', '8', '9'], true) ? $_POST['kelas'] : null;
+            // Centang "soal demo" hanya admin; guru null = jangan ubah status demo soal lama.
+            $isDemo = $isAdmin ? (isset($_POST['is_demo']) ? 1 : 0) : null;
             $d = ['game_id' => $game_id, 'mapel_id' => ($mapel_id > 0 ? $mapel_id : null), 'pertanyaan' => trim($_POST['pertanyaan'] ?? ''), 'opsi_a' => trim($_POST['opsi_a'] ?? ''), 'opsi_b' => trim($_POST['opsi_b'] ?? ''), 'opsi_c' => trim($_POST['opsi_c'] ?? ''), 'opsi_d' => trim($_POST['opsi_d'] ?? ''), 'kunci' => strtoupper($_POST['kunci'] ?? 'A'), 'penjelasan' => trim($_POST['penjelasan'] ?? ''), 'payload' => null];
             if ($d['pertanyaan'] === '') { throw new Exception('Pertanyaan wajib diisi.'); }
             // Tipe yang mewajibkan keempat opsi terisi penuh.
@@ -134,22 +140,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 else { $d['opsi_a'] = $d['opsi_a'] !== '' ? $d['opsi_a'] : 'Benar'; $d['opsi_b'] = $d['opsi_b'] !== '' ? $d['opsi_b'] : 'Salah'; }
             }
             if ($id > 0) {
-                $st = $db->prepare('UPDATE mpi_soal SET game_id=?,mapel_id=?,pertanyaan=?,opsi_a=?,opsi_b=?,opsi_c=?,opsi_d=?,kunci=?,penjelasan=?,payload=? WHERE id=?');
-                $st->execute([$d['game_id'],$d['mapel_id'],$d['pertanyaan'],$d['opsi_a'],$d['opsi_b'],$d['opsi_c'],$d['opsi_d'],$d['kunci'],$d['penjelasan'],$d['payload'],$id]);
+                $sql = 'UPDATE mpi_soal SET game_id=?,mapel_id=?,kelas=?,pertanyaan=?,opsi_a=?,opsi_b=?,opsi_c=?,opsi_d=?,kunci=?,penjelasan=?,payload=?';
+                $params = [$d['game_id'],$d['mapel_id'],$kelas,$d['pertanyaan'],$d['opsi_a'],$d['opsi_b'],$d['opsi_c'],$d['opsi_d'],$d['kunci'],$d['penjelasan'],$d['payload']];
+                if ($isDemo !== null) { $sql .= ',is_demo=?'; $params[] = $isDemo; }
+                $sql .= ' WHERE id=?'; $params[] = $id;
+                $st = $db->prepare($sql); $st->execute($params);
                 mpi_flash('Soal diperbarui.');
             } else {
-                $st = $db->prepare('INSERT INTO mpi_soal (game_id,mapel_id,pertanyaan,opsi_a,opsi_b,opsi_c,opsi_d,kunci,penjelasan,payload,guru_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
-                $st->execute([$d['game_id'],$d['mapel_id'],$d['pertanyaan'],$d['opsi_a'],$d['opsi_b'],$d['opsi_c'],$d['opsi_d'],$d['kunci'],$d['penjelasan'],$d['payload'],$user['id']]);
+                $st = $db->prepare('INSERT INTO mpi_soal (game_id,mapel_id,kelas,pertanyaan,opsi_a,opsi_b,opsi_c,opsi_d,kunci,penjelasan,payload,is_demo,guru_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $st->execute([$d['game_id'],$d['mapel_id'],$kelas,$d['pertanyaan'],$d['opsi_a'],$d['opsi_b'],$d['opsi_c'],$d['opsi_d'],$d['kunci'],$d['penjelasan'],$d['payload'],$isDemo ?? 0,$user['id']]);
                 mpi_flash('Soal ditambahkan.');
             }
         } elseif ($action === 'soal_delete') {
             $st = $db->prepare('DELETE FROM mpi_soal WHERE id = ?'); $st->execute([(int) $_POST['id']]); mpi_flash('Soal dihapus.');
         } elseif ($action === 'soal_upload') {
             $game_id = (int) $_POST['game_id']; $mapel_id = (int) ($_POST['mapel_id'] ?? 0); $mapel_id = $mapel_id > 0 ? $mapel_id : null;
+            $kelas = in_array($_POST['kelas'] ?? '', ['7', '8', '9'], true) ? $_POST['kelas'] : null;
             if (empty($_FILES['csv']['tmp_name']) || $_FILES['csv']['error'] !== UPLOAD_ERR_OK) { throw new Exception('Gagal mengunggah file CSV.'); }
             $items = mpi_parse_csv_soal((string) file_get_contents($_FILES['csv']['tmp_name']));
-            $st = $db->prepare('INSERT INTO mpi_soal (game_id,mapel_id,pertanyaan,opsi_a,opsi_b,opsi_c,opsi_d,kunci,penjelasan,guru_id) VALUES (?,?,?,?,?,?,?,?,?,?)');
-            foreach ($items as $it) { $st->execute([$game_id,$mapel_id,$it['pertanyaan'],$it['opsi_a'],$it['opsi_b'],$it['opsi_c'],$it['opsi_d'],$it['kunci'],$it['penjelasan'],$user['id']]); }
+            $st = $db->prepare('INSERT INTO mpi_soal (game_id,mapel_id,kelas,pertanyaan,opsi_a,opsi_b,opsi_c,opsi_d,kunci,penjelasan,guru_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
+            foreach ($items as $it) { $st->execute([$game_id,$mapel_id,$kelas,$it['pertanyaan'],$it['opsi_a'],$it['opsi_b'],$it['opsi_c'],$it['opsi_d'],$it['kunci'],$it['penjelasan'],$user['id']]); }
             mpi_flash(count($items) . ' soal berhasil diimpor.');
         } elseif ($action === 'user_save') {
             $id = (int) ($_POST['id'] ?? 0); $username = trim($_POST['username'] ?? ''); $nama = trim($_POST['nama'] ?? ''); $role = ($_POST['role'] ?? 'guru') === 'admin' ? 'admin' : 'guru'; $pass = $_POST['password'] ?? '';
@@ -189,10 +199,14 @@ if ($tab === 'soal' && isset($_GET['edit'])) {
 }
 $soalFilter = (int) ($_GET['game'] ?? 0); if ($soalFilter === 0 && $games) { $soalFilter = (int) $games[0]['id']; }
 $mapelFilter = (int) ($_GET['mapel'] ?? 0);
+$kelasFilter = (string) ($_GET['kelas'] ?? '');
+if (!in_array($kelasFilter, ['7', '8', '9', 'umum'], true)) { $kelasFilter = ''; }
 $soalList = [];
 if ($soalFilter > 0) {
     $sql = 'SELECT s.*, m.nama AS mapel_nama FROM mpi_soal s LEFT JOIN mpi_mapel m ON m.id = s.mapel_id WHERE s.game_id = ?'; $params = [$soalFilter];
     if ($mapelFilter > 0) { $sql .= ' AND s.mapel_id = ?'; $params[] = $mapelFilter; }
+    if ($kelasFilter === 'umum') { $sql .= ' AND s.kelas IS NULL'; }
+    elseif ($kelasFilter !== '') { $sql .= ' AND s.kelas = ?'; $params[] = $kelasFilter; }
     $sql .= ' ORDER BY s.id DESC LIMIT 200';
     $st = $db->prepare($sql); $st->execute($params); $soalList = $st->fetchAll();
 }
@@ -211,52 +225,135 @@ $ini = mb_strtoupper(mb_substr($ini, 0, 2));
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> — Panel MPI</title>
 <style>
+/* Tema NEUBRUTALISM EDU — disamakan dgn LMS & assets/style.css.
+   Nama kelas TIDAK berubah dari tema lama. */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
-body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f4f6fb; color: #1e293b; }
+body {
+  margin: 0; font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px; line-height: 1.5;
+  background: var(--paper, #FDF6EC);
+  background-image: radial-gradient(rgba(20,20,20,.06) 1.2px, transparent 1.2px);
+  background-size: 22px 22px;
+  color: var(--ink, #141414);
+}
 a { text-decoration: none; color: inherit; }
-button, .btn { font-family: inherit; cursor: pointer; border: none; border-radius: 10px; font-weight: 700; padding: 9px 15px; font-size: 14px; }
-.btn-primary { background: #6e62e5; color: #fff; } .btn-primary:hover { background: #5a4fd0; }
-.btn-secondary { background: #eef1f7; color: #334155; } .btn-secondary:hover { background: #e2e7f0; }
-.btn-danger { background: #fee2e2; color: #b91c1c; } .btn-sm { padding: 5px 10px; font-size: 13px; }
-.muted { color: #64748b; }
+h1, h2, h3 { line-height: 1.2; font-weight: 900; letter-spacing: -0.015em; }
+button, .btn {
+  font-family: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 45px; padding: 10px 17px; border-radius: var(--radius-sm, 12px);
+  border: var(--line, 2.5px solid #141414); background: var(--card, #fff); color: var(--ink, #141414);
+  font-size: 14px; font-weight: 900; line-height: 1.2;
+  box-shadow: var(--shadow, 3px 3px 0 #141414); transition: transform .06s, box-shadow .06s;
+}
+button:hover, .btn:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 #141414; }
+button:active, .btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 #141414; }
+.btn-primary { background: var(--mint, #7CF5C3); }
+.btn-secondary { background: var(--card, #fff); }
+.btn-danger { background: var(--pink, #FF8FA3); }
+.btn-sm { min-height: 36px; padding: 7px 13px; font-size: 12.5px; border-radius: 10px; box-shadow: 2px 2px 0 #141414; }
+.muted { color: var(--muted, #55555D); font-size: 13px; font-weight: 600; }
 .admin-shell { display: flex; height: 100vh; }
-.admin-sidebar { width: 250px; background: #fff; border-right: 1px solid #e7ebf3; display: flex; flex-direction: column; flex-shrink: 0; }
-.admin-logo { padding: 20px 22px; display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 17px; border-bottom: 1px solid #eef1f7; }
-.admin-logo .dot { width: 36px; height: 36px; border-radius: 10px; background: #6e62e5; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; }
-.admin-nav { flex: 1; padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
-.admin-nav a { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 10px; color: #64748b; font-weight: 600; font-size: 14.5px; }
-.admin-nav a:hover { background: #f1f3fb; color: #1e293b; }
-.admin-nav a.active { background: #6e62e5; color: #fff; }
-.admin-sidefoot { padding: 14px 16px; border-top: 1px solid #eef1f7; font-size: 13px; line-height: 1.7; }
+.admin-sidebar {
+  width: 250px; background: var(--card, #fff); border-right: 3px solid var(--ink, #141414);
+  display: flex; flex-direction: column; flex-shrink: 0;
+}
+.admin-logo {
+  padding: 20px 22px; display: flex; align-items: center; gap: 11px;
+  font-weight: 900; font-size: 17px; border-bottom: 3px solid var(--ink, #141414);
+}
+.admin-logo .dot {
+  width: 38px; height: 38px; border-radius: 10px; background: var(--yellow, #FFD43B);
+  color: var(--ink, #141414); display: flex; align-items: center; justify-content: center;
+  font-size: 18px; border: var(--line, 2.5px solid #141414); box-shadow: 2px 2px 0 #141414;
+}
+.admin-nav { flex: 1; padding: 14px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.admin-nav a {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border: var(--line, 2.5px solid #141414); border-radius: var(--radius-sm, 12px);
+  background: var(--card, #fff); color: var(--ink, #141414); font-weight: 800; font-size: 13.5px;
+  box-shadow: 2px 2px 0 #141414;
+}
+.admin-nav a:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #141414; }
+.admin-nav a.active { background: var(--yellow, #FFD43B); }
+.admin-sidefoot { padding: 14px 16px; border-top: 3px solid var(--ink, #141414); font-size: 13px; line-height: 1.7; }
 .admin-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.admin-topbar { height: 62px; background: #fff; border-bottom: 1px solid #e7ebf3; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; }
-.admin-topbar .title { font-size: 18px; font-weight: 800; }
-.admin-topbar .right { display: flex; align-items: center; gap: 16px; }
-.avatar { width: 38px; height: 38px; border-radius: 50%; background: #6e62e5; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+.admin-topbar {
+  height: 62px; background: var(--yellow, #FFD43B); border-bottom: 3px solid var(--ink, #141414);
+  display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0;
+}
+.admin-topbar .title { font-size: 18px; font-weight: 900; }
+.admin-topbar .right { display: flex; align-items: center; gap: 16px; font-weight: 700; }
+.avatar {
+  width: 38px; height: 38px; border-radius: 50%; border: var(--line, 2.5px solid #141414);
+  background: var(--sky, #8ECBFF); color: var(--ink, #141414);
+  display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px;
+  box-shadow: 2px 2px 0 #141414;
+}
 .admin-content { flex: 1; overflow-y: auto; padding: 24px; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
-.stat-card { background: #fff; border: 1px solid #eef1f7; border-radius: 14px; padding: 18px; display: flex; align-items: center; gap: 14px; }
-.stat-card .ic { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
-.stat-card .v { font-size: 26px; font-weight: 800; } .stat-card .l { font-size: 13px; color: #64748b; }
-.dash-card { background: #fff; border: 1px solid #eef1f7; border-radius: 14px; margin-bottom: 20px; overflow: hidden; }
-.dash-card .head { padding: 16px 20px; border-bottom: 1px solid #eef1f7; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.stat-card {
+  background: var(--card, #fff); border: 3px solid var(--ink, #141414); border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow, 3px 3px 0 #141414); padding: 18px; display: flex; align-items: center; gap: 14px;
+}
+.stat-card .ic {
+  width: 48px; height: 48px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; border: var(--line, 2.5px solid #141414); flex-shrink: 0;
+}
+.stat-card .v { font-size: 26px; font-weight: 900; line-height: 1.1; }
+.stat-card .l { font-size: 11.5px; color: var(--muted, #55555D); font-weight: 700; }
+.dash-card {
+  background: var(--card, #fff); border: 3px solid var(--ink, #141414); border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow, 3px 3px 0 #141414); margin-bottom: 20px; overflow: hidden;
+}
+.dash-card .head {
+  padding: 13px 16px; border-bottom: 3px solid var(--ink, #141414); font-weight: 900; font-size: 15px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
 .dash-card .body { padding: 20px; }
 .form-row { margin-bottom: 13px; }
-.form-row label { display: block; font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600; }
-.form-row input, .form-row select, .form-row textarea { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1px solid #d7dde8; background: #fff; color: #1e293b; font-size: 15px; font-family: inherit; }
+.form-row label { display: block; font-size: 12.5px; color: var(--ink, #141414); margin-bottom: 6px; font-weight: 800; }
+.form-row input, .form-row select, .form-row textarea {
+  width: 100%; min-height: 45px; padding: 10px 13px;
+  border: var(--line, 2.5px solid #141414); border-radius: var(--radius-sm, 12px);
+  background: var(--card, #fff); color: var(--ink, #141414);
+  font-size: 14.5px; font-family: inherit; font-weight: 600;
+}
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  outline: none; box-shadow: 3px 3px 0 var(--yellow, #FFD43B), 3px 3px 0 1px #141414;
+}
 .form-row textarea { min-height: 84px; resize: vertical; }
 .inline { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
 .inline .form-row { flex: 1; min-width: 160px; }
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eef1f7; vertical-align: top; }
-th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
-.badge { display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 12px; background: #eef1f7; color: #475569; }
-.badge.admin { background: #ede9fe; color: #6d28d9; }
-.alert { padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-weight: 600; }
-.alert.ok { background: #e8f7ee; color: #166534; } .alert.err { background: #fdeaea; color: #991b1b; }
-.welcome { background: linear-gradient(135deg, #6e62e5, #8b5cf6); color: #fff; border-radius: 14px; padding: 22px 26px; margin-bottom: 20px; }
-.welcome h2 { margin: 0 0 6px; } .welcome p { margin: 0; opacity: .9; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 11px 13px; border-bottom: 2px solid var(--ink, #141414); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 900; }
+tbody tr:hover { background: rgba(255, 212, 59, .22); }
+tbody tr:last-child td { border-bottom: 0; }
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 900;
+  border: 2px solid var(--ink, #141414); background: var(--card, #fff); color: var(--ink, #141414);
+}
+.badge.admin { background: var(--sky, #8ECBFF); }
+.alert {
+  padding: 12px 16px; border-radius: var(--radius-sm, 12px); margin-bottom: 16px; font-weight: 800;
+  border: 2.5px solid var(--ink, #141414); box-shadow: 2px 2px 0 #141414;
+}
+.alert.ok { background: var(--mint, #7CF5C3); color: var(--ink, #141414); }
+.alert.err { background: var(--pink, #FF8FA3); color: var(--ink, #141414); }
+.welcome {
+  background: var(--yellow, #FFD43B); color: var(--ink, #141414);
+  border: 3px solid var(--ink, #141414); border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow, 3px 3px 0 #141414); padding: 22px 26px; margin-bottom: 20px;
+}
+.welcome h2 { margin: 0 0 6px; } .welcome p { margin: 0; font-weight: 600; }
+@media (max-width: 800px) {
+  .admin-shell { flex-direction: column; height: auto; min-height: 100vh; }
+  .admin-sidebar { width: 100%; border-right: 0; border-bottom: 3px solid var(--ink, #141414); }
+  .admin-nav { flex-direction: row; overflow-x: auto; gap: 6px; }
+  .admin-nav a { white-space: nowrap; }
+}
 </style>
 </head>
 <body>
@@ -290,14 +387,14 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
       <?php if ($tab === 'dashboard'): ?>
         <div class="welcome"><h2>Selamat datang, <?= e($user['nama']) ?> 👋</h2><p>Kelola media pembelajaran interaktif SMP 5 Tegal dari sini.</p></div>
         <div class="stat-grid">
-          <div class="stat-card"><div class="ic" style="background:#ede9fe">🎮</div><div><div class="v"><?= count($games) ?></div><div class="l">Game</div></div></div>
-          <div class="stat-card"><div class="ic" style="background:#e0f2fe">📚</div><div><div class="v"><?= count($mapel) ?></div><div class="l">Mata Pelajaran</div></div></div>
-          <div class="stat-card"><div class="ic" style="background:#dcfce7">📝</div><div><div class="v"><?= $totalSoal ?></div><div class="l">Soal</div></div></div>
-          <?php if ($isAdmin): ?><div class="stat-card"><div class="ic" style="background:#fef3c7">👥</div><div><div class="v"><?= $totalUsers ?></div><div class="l">Pengguna</div></div></div><?php endif; ?>
+          <div class="stat-card"><div class="ic" style="background:#FFD43B">🎮</div><div><div class="v"><?= count($games) ?></div><div class="l">Game</div></div></div>
+          <div class="stat-card"><div class="ic" style="background:#8ECBFF">📚</div><div><div class="v"><?= count($mapel) ?></div><div class="l">Mata Pelajaran</div></div></div>
+          <div class="stat-card"><div class="ic" style="background:#7CF5C3">📝</div><div><div class="v"><?= $totalSoal ?></div><div class="l">Soal</div></div></div>
+          <?php if ($isAdmin): ?><div class="stat-card"><div class="ic" style="background:#FF8FA3">👥</div><div><div class="v"><?= $totalUsers ?></div><div class="l">Pengguna</div></div></div><?php endif; ?>
         </div>
         <div class="dash-card"><div class="head">🎮 Daftar Game</div><div class="body">
           <table><tr><th>Ikon</th><th>Nama</th><th>Tipe</th><th>Aktif</th></tr>
-          <?php foreach ($games as $g): ?><tr><td style="font-size:20px"><?= e($g['icon']) ?></td><td><?= e($g['nama']) ?></td><td><span class="badge"><?= e($g['tipe']) ?></span></td><td><?= $g['aktif'] ? '✅' : '—' ?></td></tr><?php endforeach; ?>
+          <?php foreach ($games as $g): ?><tr><td style="font-size:20px"><?= e($g['icon']) ?></td><td><?= e($g['nama']) ?></td><td><span class="badge"><?= e($g['tipe']) ?></span></td><td><?php if ($isAdmin): ?><form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= e(mpi_csrf()) ?>"><input type="hidden" name="action" value="game_toggle"><input type="hidden" name="id" value="<?= (int) $g['id'] ?>"><button class="<?= $g['aktif'] ? 'btn-danger' : 'btn-primary' ?> btn-sm"><?= $g['aktif'] ? 'Matikan' : 'Nyalakan' ?></button></form> <?php endif; ?><?= $g['aktif'] ? '✅' : '—' ?></td></tr><?php endforeach; ?>
           </table>
         </div></div>
       <?php endif; ?>
@@ -329,6 +426,7 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
           <?php foreach ($games as $g): ?><tr>
             <td style="font-size:20px"><?= e($g['icon']) ?></td><td><?= e($g['nama']) ?></td><td><span class="badge"><?= e($g['slug']) ?></span></td><td><?= e($g['tipe']) ?></td><td><?= (int) $g['urutan'] ?></td><td class="muted"><?= e($g['file_path']) ?></td><td><?= $g['aktif'] ? '✅' : '—' ?></td>
             <td><div class="inline" style="align-items:center">
+              <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= e(mpi_csrf()) ?>"><input type="hidden" name="action" value="game_toggle"><input type="hidden" name="id" value="<?= (int) $g['id'] ?>"><button class="<?= $g['aktif'] ? 'btn-danger' : 'btn-primary' ?> btn-sm"><?= $g['aktif'] ? 'Nonaktifkan' : 'Aktifkan' ?></button></form>
               <a class="btn btn-secondary btn-sm" href="?tab=game&edit=<?= (int) $g['id'] ?>">Edit</a>
               <form method="post" onsubmit="return confirm('Hapus game ini beserta semua soalnya?')" style="display:inline"><input type="hidden" name="csrf" value="<?= e(mpi_csrf()) ?>"><input type="hidden" name="action" value="game_delete"><input type="hidden" name="id" value="<?= (int) $g['id'] ?>"><button class="btn-danger btn-sm">Hapus</button></form>
             </div></td>
@@ -367,6 +465,7 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
             <div class="inline">
               <div class="form-row"><label>Game</label><select name="game_id" id="gameSelect"><?php foreach ($games as $g): ?><option value="<?= (int) $g['id'] ?>" data-tipe="<?= e($g['tipe']) ?>" <?= ($editSoal['game_id'] ?? $soalFilter) === (int) $g['id'] ? 'selected' : '' ?>><?= e($g['icon'] . ' ' . $g['nama']) ?></option><?php endforeach; ?></select></div>
               <div class="form-row"><label>Mata pelajaran</label><select name="mapel_id"><option value="0">— tanpa mapel —</option><?php foreach ($mapel as $m): ?><option value="<?= (int) $m['id'] ?>" <?= ($editSoal['mapel_id'] ?? 0) === (int) $m['id'] ? 'selected' : '' ?>><?= e($m['nama']) ?></option><?php endforeach; ?></select></div>
+              <div class="form-row" style="max-width:160px"><label>Kelas (pemisah materi)</label><select name="kelas"><option value="">Semua kelas</option><?php foreach (['7', '8', '9'] as $k): ?><option value="<?= $k ?>" <?= ($editSoal['kelas'] ?? '') === $k ? 'selected' : '' ?>>Kelas <?= $k ?></option><?php endforeach; ?></select></div>
             </div>
             <div class="form-row"><label>Pertanyaan / perintah</label><textarea name="pertanyaan" required><?= e($editSoal['pertanyaan'] ?? '') ?></textarea></div>
 
@@ -399,6 +498,7 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
 
             <div class="form-row"><label>Penjelasan / catatan (opsional)</label><input name="penjelasan" value="<?= e($editSoal['penjelasan'] ?? '') ?>"></div>
             <div class="inline">
+              <?php if ($isAdmin): ?><label style="font-size:14px;font-weight:600"><input type="checkbox" name="is_demo" <?= ($editSoal['is_demo'] ?? 0) ? 'checked' : '' ?>> Soal demo (bisa dimainkan tanpa akun)</label><?php endif; ?>
               <button class="btn-primary"><?= $editSoal ? 'Simpan' : 'Tambah Soal' ?></button>
               <?php if ($editSoal): ?><a class="btn btn-secondary" href="?tab=soal">Batal</a><?php endif; ?>
             </div>
@@ -412,6 +512,7 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
             <div class="inline">
               <div class="form-row"><label>Game</label><select name="game_id"><?php foreach ($games as $g): ?><option value="<?= (int) $g['id'] ?>" <?= $soalFilter === (int) $g['id'] ? 'selected' : '' ?>><?= e($g['nama']) ?></option><?php endforeach; ?></select></div>
               <div class="form-row"><label>Mata pelajaran</label><select name="mapel_id"><option value="0">— tanpa mapel —</option><?php foreach ($mapel as $m): ?><option value="<?= (int) $m['id'] ?>"><?= e($m['nama']) ?></option><?php endforeach; ?></select></div>
+              <div class="form-row" style="max-width:160px"><label>Kelas (pemisah materi)</label><select name="kelas"><option value="">Semua kelas</option><?php foreach (['7', '8', '9'] as $k): ?><option value="<?= $k ?>">Kelas <?= $k ?></option><?php endforeach; ?></select></div>
               <div class="form-row"><label>File CSV</label><input type="file" name="csv" accept=".csv,.txt" required></div>
               <button class="btn-primary">⬆ Impor</button>
             </div>
@@ -423,15 +524,17 @@ th { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing:
             <input type="hidden" name="tab" value="soal">
             <div class="form-row"><label>Game</label><select name="game" onchange="this.form.submit()"><?php foreach ($games as $g): ?><option value="<?= (int) $g['id'] ?>" <?= $soalFilter === (int) $g['id'] ? 'selected' : '' ?>><?= e($g['nama']) ?></option><?php endforeach; ?></select></div>
             <div class="form-row"><label>Mapel</label><select name="mapel" onchange="this.form.submit()"><option value="0">Semua</option><?php foreach ($mapel as $m): ?><option value="<?= (int) $m['id'] ?>" <?= $mapelFilter === (int) $m['id'] ? 'selected' : '' ?>><?= e($m['nama']) ?></option><?php endforeach; ?></select></div>
+            <div class="form-row"><label>Kelas</label><select name="kelas" onchange="this.form.submit()"><option value="">Semua</option><option value="umum" <?= $kelasFilter === 'umum' ? 'selected' : '' ?>>Umum (semua kelas)</option><?php foreach (['7', '8', '9'] as $k): ?><option value="<?= $k ?>" <?= $kelasFilter === $k ? 'selected' : '' ?>>Kelas <?= $k ?></option><?php endforeach; ?></select></div>
           </form>
           <?php if (!$soalList): ?><p class="muted">Belum ada soal.</p><?php endif; ?>
-          <table><tr><th>#</th><th>Pertanyaan</th><th>Opsi</th><th>Kunci</th><th>Mapel</th><th>Aksi</th></tr>
+          <table><tr><th>#</th><th>Pertanyaan</th><th>Opsi</th><th>Kunci</th><th>Mapel</th><th>Kelas</th><th>Aksi</th></tr>
           <?php foreach ($soalList as $i => $s): ?><tr>
             <td><?= $i + 1 ?></td>
             <td><?= e($s['pertanyaan']) ?><div class="muted"><?= e($s['penjelasan']) ?></div></td>
             <td>A. <?= e($s['opsi_a']) ?><br>B. <?= e($s['opsi_b']) ?><?= !empty($s['opsi_c']) ? '<br>C. ' . e($s['opsi_c']) : '' ?><?= !empty($s['opsi_d']) ? '<br>D. ' . e($s['opsi_d']) : '' ?></td>
             <td><b><?= e($s['kunci']) ?></b></td>
             <td><?= $s['mapel_nama'] ? '<span class="badge">' . e($s['mapel_nama']) . '</span>' : '<span class="muted">—</span>' ?></td>
+            <td><span class="badge"><?= $s['kelas'] ? 'Kelas ' . e($s['kelas']) : 'Semua' ?></span><?= (int) $s['is_demo'] ? ' <span class="badge">Demo</span>' : '' ?></td>
             <td><div class="inline" style="align-items:center">
               <a class="btn btn-secondary btn-sm" href="?tab=soal&edit=<?= (int) $s['id'] ?>">Edit</a>
               <form method="post" onsubmit="return confirm('Hapus soal ini?')" style="display:inline"><input type="hidden" name="csrf" value="<?= e(mpi_csrf()) ?>"><input type="hidden" name="action" value="soal_delete"><input type="hidden" name="id" value="<?= (int) $s['id'] ?>"><button class="btn-danger btn-sm">Hapus</button></form>
