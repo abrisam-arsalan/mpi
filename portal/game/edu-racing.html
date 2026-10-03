@@ -49,6 +49,19 @@
   .barisTim { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
   .dotTim { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); flex: none; }
   .barisTim input { flex: 1; min-width: 0; }
+
+  /* ---------- PANEL DATA AWAL (layar pembuka) ---------- */
+  /* Form dalam grid multi-kolom supaya padat tapi lapang, tanpa scroll paksa. */
+  #panelDataAwal { width: min(880px, 94%); text-align: left; padding: clamp(14px, 2.2vw, 24px); }
+  #panelDataAwal h2 { margin: 0 0 12px; color: var(--gold); font-size: clamp(16px, 2.2vw, 24px); }
+  .gridData { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px clamp(12px, 2vw, 22px); }
+  .gridData .baris { flex-direction: column; align-items: stretch; gap: 5px; margin: 0; }
+  .gridData .baris > label { width: auto; text-align: left; font-size: clamp(12px, 1.4vw, 15px); }
+  .gridData .baris select { width: 100%; min-height: 46px; }
+  .judulKecil { margin: 16px 0 8px; color: #cbd5e1; font-weight: 800; letter-spacing: 1px; font-size: clamp(13px, 1.6vw, 17px); }
+  #daftarTim { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px 14px; }
+  #daftarTim .barisTim { margin: 0; background: #0b1220; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+  #daftarTim .barisTim select { max-width: 130px; }
   .advGrid { display: flex; flex-wrap: wrap; gap: 8px; }
   .pillAdv { display: inline-flex; align-items: center; gap: 8px; background: #0b1220; border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; font-weight: 800; font-size: clamp(13px, 1.5vw, 16px); min-height: 44px; }
   .pillAdv input { width: 20px; height: 20px; accent-color: var(--gold); }
@@ -213,12 +226,12 @@
   <h1>🏁 EDU RACING</h1>
   <p class="tagline">SIAPA CEPAT, DIA MELAJU!</p>
   <!-- DATA AWAL: diisi guru sebelum balapan dimulai -->
-  <div id="panelDataAwal" class="panel" style="width:min(720px,94%);text-align:left;max-height:44vh;overflow:auto">
-    <h2 style="margin:0 0 10px;font-size:clamp(15px,2vw,20px);color:var(--gold)">📝 DATA AWAL PERMAINAN</h2>
+  <div id="panelDataAwal" class="panel">
+    <h2>📝 DATA AWAL PERMAINAN</h2>
+    <div class="gridData">
     <div class="baris"><label>Jumlah Tim</label>
       <select id="cfgJumlahTim"><option value="2">2 tim</option><option value="3">3 tim</option><option value="4" selected>4 tim</option></select>
     </div>
-    <div id="daftarTim"></div>
     <div class="baris"><label>Jumlah Soal</label>
       <select id="cfgJumlahSoal"><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20" selected>20</option></select>
     </div>
@@ -237,6 +250,9 @@
     <div class="baris"><label>Mode Permainan</label>
       <select id="cfgMode"><option value="classic" selected>CLASSIC</option><option value="advanced">ADVANCED</option></select>
     </div>
+    </div>
+    <div class="judulKecil">👥 TIM BERTANDING</div>
+    <div id="daftarTim"></div>
   </div>
   <div class="menuBtns">
     <button id="btnStartRace" class="menuBtn utama">🏁 START RACE</button>
