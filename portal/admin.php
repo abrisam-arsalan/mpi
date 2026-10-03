@@ -359,19 +359,15 @@ tbody tr:last-child td { border-bottom: 0; }
 <body>
 <div class="admin-shell">
   <aside class="admin-sidebar">
-    <div class="admin-logo"><span class="dot">🎓</span> Panel MPI</div>
+    <a class="admin-logo" href="index.php" title="Ke beranda (daftar game)"><span class="dot">🎓</span> Panel MPI</a>
     <nav class="admin-nav">
       <a href="?tab=dashboard" class="<?= $tab === 'dashboard' ? 'active' : '' ?>">📊 Dashboard</a>
       <?php if ($isAdmin): ?><a href="?tab=game" class="<?= $tab === 'game' ? 'active' : '' ?>">🎮 Game</a><?php endif; ?>
       <a href="?tab=mapel" class="<?= $tab === 'mapel' ? 'active' : '' ?>">📚 Mata Pelajaran</a>
       <a href="?tab=soal" class="<?= $tab === 'soal' ? 'active' : '' ?>">📝 Bank Soal</a>
       <?php if ($isAdmin): ?><a href="?tab=users" class="<?= $tab === 'users' ? 'active' : '' ?>">👥 Pengguna</a><?php endif; ?>
+      <a href="logout.php">🚪 Keluar</a>
     </nav>
-    <div class="admin-sidefoot">
-      <div><b><?= e($user['nama']) ?></b></div>
-      <div class="muted"><?= $isAdmin ? 'Administrator' : 'Guru' ?></div>
-      <div style="margin-top:6px"><a href="index.php">🏠 Beranda</a> · <a href="logout.php">Keluar</a></div>
-    </div>
   </aside>
   <div class="admin-main">
     <header class="admin-topbar">
