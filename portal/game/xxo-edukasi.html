@@ -13,7 +13,7 @@
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   [hidden] { display:none !important; }
-  html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--bg); color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select:none; }
+  html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--bg); color:#fff; font-family:'Nunito',system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select:none; }
   button { font-family:inherit; cursor:pointer; border:none;border-radius:12px; font-weight:800; }
   button:disabled { opacity:.35; cursor:default; }
   .muted { color:var(--muted); }
@@ -154,6 +154,21 @@
   #tipsGuru { width:min(760px,94%); background:var(--panel); border:1px dashed var(--line); border-radius:14px; padding:14px 20px; }
   #tipsGuru h3 { margin:0 0 6px; color:var(--gold); font-size:17px; }
   #tipsGuru li { font-size:clamp(13px,1.6vw,16px); line-height:1.55; color:#dbe3f4; margin:4px 0; }
+
+
+  /* ---------- FONT GAME: Fredoka (judul & tombol) + Nunito (teks & soal) ----------
+     Di-hosting sendiri di ../assets/fonts/ (variabel, subset latin) supaya
+     tampilan tetap konsisten walau koneksi internet sekolah bermasalah. */
+  @font-face {
+    font-family: 'Fredoka'; font-style: normal; font-weight: 300 700;
+    font-display: swap; src: url('../assets/fonts/fredoka-latin.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Nunito'; font-style: normal; font-weight: 400 900;
+    font-display: swap; src: url('../assets/fonts/nunito-latin.woff2') format('woff2');
+  }
+  h1, h2, h3, h4, button, label { font-family: 'Fredoka', 'Nunito', system-ui, sans-serif; }
+  input, select, textarea { font-family: inherit; }
 </style>
 </head>
 <body>

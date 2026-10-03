@@ -12,7 +12,7 @@
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   [hidden] { display: none !important; }
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: #fff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; user-select: none; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: #fff; font-family:'Nunito',system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; user-select: none; }
   button { font-family: inherit; cursor: pointer; border: none; border-radius: 12px; font-weight: 800; }
   .muted { color: var(--muted); }
   .kecil { font-size: clamp(12px, 1.4vw, 15px); }
@@ -216,6 +216,21 @@
   #endHome { align-self: center; color: #a5b4fc; font-size: 16px; z-index: 6; }
   #teamworkModal .tmBtn { display: block; width: 100%; min-height: 52px; margin: 8px 0; background: linear-gradient(rgba(0, 0, 0, .2), rgba(0, 0, 0, .3)), var(--tc, #1b2a6b); border: 2px solid rgba(255, 255, 255, .25); color: #fff; font-size: clamp(15px, 2vw, 21px); text-align: left; padding: 10px 16px; }
   #teamworkModal .lewati { background: #334155; text-align: center; }
+
+
+  /* ---------- FONT GAME: Fredoka (judul & tombol) + Nunito (teks & soal) ----------
+     Di-hosting sendiri di ../assets/fonts/ (variabel, subset latin) supaya
+     tampilan tetap konsisten walau koneksi internet sekolah bermasalah. */
+  @font-face {
+    font-family: 'Fredoka'; font-style: normal; font-weight: 300 700;
+    font-display: swap; src: url('../assets/fonts/fredoka-latin.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Nunito'; font-style: normal; font-weight: 400 900;
+    font-display: swap; src: url('../assets/fonts/nunito-latin.woff2') format('woff2');
+  }
+  h1, h2, h3, h4, button, label { font-family: 'Fredoka', 'Nunito', system-ui, sans-serif; }
+  input, select, textarea { font-family: inherit; }
 </style>
 </head>
 <body>
