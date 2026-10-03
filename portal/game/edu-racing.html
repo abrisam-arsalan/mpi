@@ -104,6 +104,10 @@
   .labelFinis { position: absolute; right: 6px; top: clamp(38px, 7.4vh, 68px); z-index: 5; font-size: clamp(10px, 1.2vw, 14px); font-weight: 900; color: var(--gold); background: rgba(0, 0, 0, .55); padding: 2px 8px; border-radius: 8px; }
 
   #barSoal { display: flex; align-items: center; gap: 10px; padding: 8px 14px; flex-wrap: wrap; flex: none; }
+  /* Kotak soal utama: tampil SEBELUM rebutan supaya semua tim membaca soal dulu */
+  #qTeks { flex: none; text-align: center; font-weight: 800; line-height: 1.3; padding: clamp(12px, 2.2vw, 22px); font-size: clamp(18px, 2.8vw, 32px); }
+  #qTeks:empty { display: none; }
+  #qTeks .ch { color: var(--gold); }
   .chip { background: #0b1220; border: 1px solid var(--line); padding: 8px 14px; border-radius: 999px; font-weight: 900; font-size: clamp(13px, 1.7vw, 19px); white-space: nowrap; }
   #qTimer { color: var(--gold); min-width: 84px; text-align: center; }
   #qTimer.mepet { color: var(--bad); animation: denyut .6s infinite alternate; }
@@ -257,7 +261,7 @@
       <select id="cfgWaktuRebutan"><option value="10">10 detik</option><option value="15">15 detik</option><option value="20" selected>20 detik</option><option value="30">30 detik</option></select>
     </div>
     <div class="baris"><label>Waktu Menjawab</label>
-      <select id="cfgWaktuJawab"><option value="10" selected>10 detik</option><option value="15">15 detik</option><option value="20">20 detik</option><option value="30">30 detik</option></select>
+      <select id="cfgWaktuJawab"><option value="10">10 detik</option><option value="15" selected>15 detik</option><option value="20">20 detik</option><option value="30">30 detik</option></select>
     </div>
     <div class="baris"><label>Tingkat Kesulitan</label>
       <select id="cfgKesulitan"><option value="mudah" selected>Mudah (+10)</option><option value="sedang">Sedang (+15)</option><option value="sulit">Sulit (+20)</option></select>
@@ -367,6 +371,8 @@
     <span class="chip" id="qTimer">⏱ 20</span>
     <span class="muted" id="qCatatan">Bersiap di garis start…</span>
   </div>
+
+  <div id="qTeks" class="panel"></div>
 
   <div id="rebutanRow"></div>
 
@@ -528,7 +534,7 @@
     jumlahSoal: 20,
     lintasan: 100,
     waktuRebutan: 20,   // detik
-    waktuJawab: 10,     // detik
+    waktuJawab: 15,     // detik
     kesulitan: 'mudah',
     mode: 'classic',
     adv: { nitro: true, streak: true, coin: true, shop: true, shield: true, challenge: true, event: true, pit: true, comeback: true }
@@ -835,7 +841,7 @@
     daftarTunggu = []; timerFase = null;
     setupScreen.hidden = true; endScreen.hidden = true; gameScreen.hidden = false;
     $('jedaOverlay').hidden = true; $('btnPause').textContent = '⏸ Jeda';
-    $('koreksiOverlay').hidden = true; $('jawabanPanel').hidden = true; $('rebutanOverlay').hidden = true; $('tokoModal').hidden = true;
+    $('koreksiOverlay').hidden = true; $('jawabanPanel').hidden = true; $('rebutanOverlay').hidden = true; $('tokoModal').hidden = true; $('qTeks').textContent = '';
     $('chipMode').textContent = cfg.mode === 'advanced' ? 'ADVANCED 🚀' : 'CLASSIC';
     $('btnToko').hidden = !(cfg.mode === 'advanced' && cfg.adv.shop);
     renderTrack(); renderStatus(); renderTombolJawab();
@@ -1132,7 +1138,8 @@
     urut.forEach(function (idx, pos) { if (pos + 1 > tim[idx].rekorBuruk) tim[idx].rekorBuruk = pos + 1; });
     pemenangIdx = -1; opsiDipilih = -1; nitroPasang = false; tahanHeadStart = false;
     isChallenge = (cfg.mode === 'advanced' && cfg.adv.challenge && ((qi + 1) % 5 === 0));   // 🎯 tiap 5 soal
-    idxComeback = hitungComeback();                                                          // 🔄 comeback
+    idxComeback = hitungComeback();
+    $('qTeks').innerHTML = esc(s.q) + (isChallenge ? ' <span class="ch">⚔️ CHALLENGE ×2!</span>' : '');                                                          // 🔄 comeback
     $('qLabel').textContent = '⭐ Soal ' + (qi + 1) + '/' + daftarSoal.length;
     $('qBadge').textContent = LABEL_LEVEL[cfg.kesulitan] + (isChallenge ? ' · ⚔️ CHALLENGE ×2' : '');
     $('qCatatan').textContent = 'Rebutan mulai — tekan JAWAB! lebih cepat!';

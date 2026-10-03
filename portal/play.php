@@ -46,7 +46,7 @@ if (($_GET['start'] ?? '') === '1') {
 <body>
 <div class="playframe">
   <div class="bar">
-    <a class="btn btn-secondary btn-sm" href="play.php?slug=<?= e($game['slug']) ?>">← Ganti Soal</a>
+    <a class="btn btn-secondary btn-sm" href="index.php">🚪 Keluar Permainan</a>
     <strong><?= e($game['icon']) ?> <?= e($game['nama']) ?></strong>
     <span class="badge <?= $sumber === 'demo' ? 'badge-yellow' : '' ?>"><?= $sumber === 'demo' ? '🎲 Soal Demo' : '📚 Soal Guru' ?></span>
     <?php if ($kelas !== ''): ?><span class="badge">Kelas <?= e($kelas) ?></span><?php endif; ?>
