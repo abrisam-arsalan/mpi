@@ -767,6 +767,19 @@
   // ---------- BAGIAN: MULAI BALAPAN (langkah 4: traffic light + countdown 3-2-1-GO) ----------
   function mulaiBalapan() {
     siap(); // buka audio lewat gestur pengguna
+    // Baca isian DATA AWAL dari layar pembuka (sebelumnya hanya terbaca
+    // lewat tombol Simpan di modal Pengaturan, sehingga pilihan guru
+    // di halaman pembuka diabaikan).
+    simpanFormTimSementara();
+    cfg.jumlahTim = parseInt($('cfgJumlahTim').value, 10);
+    cfg.jumlahSoal = parseInt($('cfgJumlahSoal').value, 10);
+    cfg.lintasan = parseInt($('cfgLintasan').value, 10);
+    cfg.waktuRebutan = parseInt($('cfgWaktuRebutan').value, 10);
+    cfg.waktuJawab = parseInt($('cfgWaktuJawab').value, 10);
+    cfg.kesulitan = $('cfgKesulitan').value;
+    cfg.mode = $('cfgMode').value;
+    var checks = document.querySelectorAll('#advGrid input[type="checkbox"]');
+    for (var ci = 0; ci < checks.length; ci++) cfg.adv[checks[ci].dataset.k] = checks[ci].checked;
     tim = [];
     for (var i = 0; i < cfg.jumlahTim; i++) {
       tim.push({
@@ -1092,9 +1105,9 @@
     $('qLabel').textContent = '⭐ Soal ' + (qi + 1) + '/' + daftarSoal.length;
     $('qBadge').textContent = LABEL_LEVEL[cfg.kesulitan] + (isChallenge ? ' · ⚔️ CHALLENGE ×2' : '');
     $('qCatatan').textContent = 'Rebutan mulai — tekan JAWAB! lebih cepat!';
-    renderStatus(); renderTombolJawab();
     fase = 'rebutan';
     awalRebutanMs = performance.now();
+    renderStatus(); renderTombolJawab();   // setelah fase = 'rebutan', supaya tombol JAWAB! tidak terkunci semua
     if (idxComeback >= 0) {
       tahanHeadStart = true;
       bannerEvent('🔄 COMEBACK! ' + tim[idxComeback].nama + ' boleh merebut 2× berturut-turut — tombolnya menyala 1,5 dtk lebih awal');
